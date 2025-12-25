@@ -1,0 +1,137 @@
+# 错误分类矩阵的单一事实来源（Single Source of Truth）。
+#
+# 教案式说明（Why）：
+# - 避免错误分类的代码实现、文档与测试之间出现漂移；
+# - 为生成 `crates/spark-core/src/error/generated/category_matrix.rs` 与 `docs/error-category-matrix.md` 提供结构化输入；
+# - 使治理与运维团队能够直接审核 TOML 数据，确认新增错误码的默认策略。
+#
+# 契约定义（What）：
+# - `rows`：每个条目可映射到一个或多个稳定错误码，字段含义如下：
+#   * `codes`：错误码字符串数组，遵循 `<域>.<语义>` 命名；
+#   * `category`：默认错误分类模板，驱动 `CoreError::category()` 与自动响应；
+#   * `doc`：文档列中对应的“说明”和“可配置策略”文本；
+# - 解析器需保持条目顺序，并在展开为静态矩阵时为每个 `code` 创建独立条目。
+#
+# 运行约束（How）：
+# - 构建脚本与文档生成脚本会在 CI 中读取本文件，生成代码与 Markdown；
+# - 若在 PR 中修改本文件，必须同步提交生成文件，以通过 `tools/ci/check_contract_sync.sh` 的守门检查。
+#
+# 风险提示（Trade-offs）：
+# - 若后续扩展新的字段或分类类型，必须同时更新解析器与生成器；
+# - 若需要跨行共享文本，可通过 `codes` 数组聚合。
+
+[[rows]]
+codes = ["transport.io"]
+[rows.category]
+kind = "retryable"
+wait_ms = 150
+reason = "传输层 I/O 故障，等待链路恢复后重试"
+busy = "downstream"
+[rows.doc]
+rationale = "典型 TCP/QUIC I/O 故障，建议短暂退避。"
+tuning = "可根据重试策略调整等待窗口。"
+
+[[rows]]
+codes = ["transport.timeout"]
+[rows.category]
+kind = "timeout"
+[rows.doc]
+rationale = "传输层请求超时，触发调用取消。"
+tuning = "若需继续等待，可显式改写分类。"
+
+[[rows]]
+codes = [
+  "protocol.decode",
+  "protocol.negotiation",
+  "protocol.type_mismatch",
+  "router.version_conflict",
+]
+[rows.category]
+kind = "protocol_violation"
+close_message = "检测到协议契约违规，已触发优雅关闭"
+[rows.doc]
+rationale = "协议契约被破坏，必须关闭连接。"
+tuning = "若协议允许纠正，可改写为 Retryable。"
+
+[[rows]]
+codes = ["protocol.budget_exceeded"]
+[rows.category]
+kind = "resource_exhausted"
+budget = "decode"
+[rows.doc]
+rationale = "解码预算耗尽，触发背压。"
+tuning = "可在 CallContext 注册定制预算。"
+
+[[rows]]
+codes = ["runtime.shutdown"]
+[rows.category]
+kind = "cancelled"
+[rows.doc]
+rationale = "运行时已进入关闭流程，终止后续逻辑。"
+tuning = "若需等待收尾，可改写为 Retryable。"
+
+[[rows]]
+codes = [
+  "cluster.node_unavailable",
+  "cluster.network_partition",
+  "cluster.leader_lost",
+]
+[rows.category]
+kind = "retryable"
+wait_ms = 250
+reason = "集群节点暂不可用，稍后重试"
+busy = "upstream"
+[rows.doc]
+rationale = "集群拓扑暂时不可用，建议延后重试。"
+tuning = "可根据集群健康状况调整等待。"
+
+[[rows]]
+codes = [
+  "cluster.service_not_found",
+  "app.routing_failed",
+]
+[rows.category]
+kind = "non_retryable"
+[rows.doc]
+rationale = "目标服务不存在或路由失败，需业务人工干预。"
+tuning = "在具备兜底副本时可标记为 Retryable。"
+
+[[rows]]
+codes = ["cluster.queue_overflow"]
+[rows.category]
+kind = "resource_exhausted"
+budget = "flow"
+[rows.doc]
+rationale = "集群队列满，触发速率背压。"
+tuning = "可扩容队列或自定义 BudgetKind。"
+
+[[rows]]
+codes = ["discovery.stale_read"]
+[rows.category]
+kind = "retryable"
+wait_ms = 120
+reason = "服务发现数据陈旧，等待刷新"
+busy = "upstream"
+[rows.doc]
+rationale = "服务发现数据陈旧，等待刷新后再试。"
+tuning = "可结合监控加长等待时长。"
+
+[[rows]]
+codes = ["app.unauthorized"]
+[rows.category]
+kind = "security"
+class = "authorization"
+[rows.doc]
+rationale = "权限不足，记录安全事件并关闭通道。"
+tuning = "可通过自定义 Handler 触发补偿。"
+
+[[rows]]
+codes = ["app.backpressure_applied"]
+[rows.category]
+kind = "retryable"
+wait_ms = 180
+reason = "下游正在施加背压，遵循等待窗口"
+busy = "downstream"
+[rows.doc]
+rationale = "业务端主动背压，需遵守等待窗口。"
+tuning = "可结合速率控制调整等待时间。"

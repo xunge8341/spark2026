@@ -1,0 +1,32 @@
+[package]
+name = "spark-hosting"
+version = "0.1.0"
+edition.workspace = true
+rust-version = "1.89"
+authors = ["Gemini 架构组 <architecture@gemini.example>"]
+license = "Apache-2.0"
+description = "spark-hosting: Spark 框架宿主装配工具"
+
+[lib]
+name = "spark_hosting"
+path = "src/lib.rs"
+bench = false
+
+[features]
+default = ["alloc"]
+alloc = ["spark-core/alloc"]
+std = ["alloc", "spark-core/std"]
+switch = ["std", "dep:spark-switch", "spark-switch/router-factory", "dep:spark-router"]
+
+[dependencies]
+spark-core = { workspace = true, default-features = false }
+futures-util = { workspace = true, default-features = false, features = ["alloc"] }
+spark-switch = { workspace = true, default-features = false, features = ["router-factory"], optional = true }
+spark-router = { workspace = true, default-features = false, features = ["std"], optional = true }
+
+[dev-dependencies]
+thiserror = { workspace = true }
+futures = { workspace = true }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)', 'cfg(spark_loom)'] }

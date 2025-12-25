@@ -1,0 +1,17 @@
+# 核心契约类型白名单（T-001A 产物）
+# - Why: 明确列出只能在 `crates/spark-core` 内定义的契约类型，供 CI 守卫脚本使用。
+# - How: 由 `tools/check_contracts.py` 使用 `tomllib` 解析 `names` 列表，并结合 `rg` 搜索确保仅在核心模块出现对应的 `pub struct/enum/trait/type` 定义。
+# - What: `names` 字段记录契约类型名（Rust 标识符）。若未来新增核心契约类型，请同步更新此文件并运行守卫脚本验证。
+names = [
+  "Cancellation",
+  "Deadline",
+  "BudgetKind",
+  "BudgetSnapshot",
+  "BudgetDecision",
+  "Budget",
+  "SecurityContextSnapshot",
+  "ObservabilityContract",
+  "CallContext",
+  "CallContextBuilder",
+  "CloseReason",
+]

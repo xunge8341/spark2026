@@ -1,0 +1,142 @@
+# 教案级注释说明：
+# - 背景：SRE 希望将 ReadyState 四分支与管线热更新纪元转化为可直接操作的告警策略。
+# - 设计要点：统一使用 5 分钟滑窗的 `increase()` 观察 ReadyState 事件频率、`max by` 对齐 `epoch/config_epoch` 标签，配合 `sum by (...)` 固定标签避免高基数。
+# - 关键输出：Ready 占比下滑、Busy、Budget Exhausted、RetryAfter Burst 四条服务就绪告警，以及 Pipeline 纪元漂移告警（用于确认配置热更新是否落地）。
+# - 前置条件：服务必须按 docs/observability/metrics.md 中的约定上报指标，尤其是 `spark_request_ready_state_total`、`spark_request_retry_after_total`、`spark_pipeline_epoch` 与 `spark_pipeline_config_epoch`。
+# - 后置条件：告警被触发时，能携带 service/route/operation/pipeline 等上下文，Runbook 可直接定位。
+---
+# Prometheus 规则文件，使用 `promtool check rules` 进行语法校验。
+groups:
+  - name: spark-ready-state
+    rules:
+      - alert: SparkServiceReadyBaselineDrop
+        expr: |
+          # 意图：捕捉 ReadyState 中 `ready` 占比在 10 分钟滑窗内明显下滑，提示服务可能进入持续背压但尚未完全耗尽预算。
+          # 逻辑：以 5 分钟 `increase()` 观察 ReadyState 各分支次数，再在 10 分钟评估窗口中比较 `ready` 占比是否低于 60%。
+          # 契约：指标需携带 `ready_state="ready"` 与 Busy/BudgetExhausted/RetryAfter 同一标签集合，确保比值计算成立。
+          # 考量：设定阈值 0.6 可在预算尚有余量时提前预警；若业务存在大量长连接，可按 Runbook 建议调整。
+          avg_over_time(
+            (
+              sum by (service_name, route_id, operation, protocol) (
+                increase(spark_request_ready_state_total{ready_state="ready"}[5m])
+              )
+              /
+              clamp_min(
+                sum by (service_name, route_id, operation, protocol) (
+                  increase(spark_request_ready_state_total[5m])
+                ),
+                1
+              )
+            )[10m:5m]
+          )
+          < 0.6
+        for: 10m
+        labels:
+          severity: warning
+          runbook: https://git.example.com/spark2026/docs/runbook/service-error-rate.md
+        annotations:
+          summary: "{{ $labels.service_name }}({{ $labels.route_id }}) Ready 占比跌破 60%"
+          description: |
+            ReadyState `ready` 占比在 10 分钟内持续低于 60%。请评估是否存在隐形背压或慢请求，并结合 Busy/BudgetExhausted 告警交叉验证。
+
+      - alert: SparkServiceBusySustained
+        expr: |
+          # 意图 (R1)：衡量 ReadyState 中 Busy 事件在 5 分钟窗口内的占比，超过 30% 说明服务持续处于繁忙态。
+          # 逻辑 (R2)：分子使用 Busy 事件数，分母使用所有 ReadyState 事件数，通过比值判断是否进入告警线。
+          # 契约 (R3)：要求指标包含 `service_name`、`route_id`、`operation`、`protocol` 标签；无数据时 Prometheus 自动视为 0，不触发告警。
+          # 考量 (R4)：选择 30% 阈值以兼顾短暂抖动（不会触发）与持续压力（会触发）；如需更敏感可下调。
+          sum by (service_name, route_id, operation, protocol) (
+            increase(spark_request_ready_state_total{ready_state="busy"}[5m])
+          )
+          /
+          clamp_min(
+            sum by (service_name, route_id, operation, protocol) (
+              increase(spark_request_ready_state_total[5m])
+            ),
+            1
+          )
+          > 0.3
+        for: 5m
+        labels:
+          severity: page
+          runbook: https://git.example.com/spark2026/docs/runbook/service-error-rate.md
+        annotations:
+          summary: "{{ $labels.service_name }}({{ $labels.route_id }}) ReadyState Busy 占比 >30%"
+          description: |
+            ReadyState Busy 占比在 5 分钟内超过 30%。请检查依赖、排队深度和流量是否异常。
+
+      - alert: SparkServiceBudgetExhaustedSpike
+        expr: |
+          # 意图：捕捉预算耗尽事件，一旦出现说明服务已经无法接收新流量。
+          # 逻辑：直接统计 5 分钟内 BudgetExhausted 次数，阈值设为 >=1。
+          # 契约：需要指标提供 `ready_state="budget_exhausted"` 事件。
+          # 考量：采用 `sum` 而非占比，以便在低流量场景下也能即时响应。
+          sum by (service_name, route_id, operation, protocol) (
+            increase(spark_request_ready_state_total{ready_state="budget_exhausted"}[5m])
+          )
+          >= 1
+        for: 1m
+        labels:
+          severity: critical
+          runbook: https://git.example.com/spark2026/docs/runbook/service-error-rate.md
+        annotations:
+          summary: "{{ $labels.service_name }}({{ $labels.route_id }}) 流量预算耗尽"
+          description: |
+            过去 5 分钟内出现 BudgetExhausted 事件。立即评估限流、降级或扩容措施，避免服务全面拒绝请求。
+
+      - alert: SparkServiceRetryAfterBurst
+        expr: |
+          # 意图：识别 RetryAfter 信号的集中爆发，为 Runbook 中的退避/限流策略提供触发条件。
+          # 逻辑：聚合 RetryAfter 事件总数，阈值为 5 分钟内 >=5 次，同时要求 ReadyState 中 RetryAfter 占比 >=10%。
+          # 契约：依赖 `spark_request_retry_after_total` 与 `spark_request_ready_state_total{ready_state="retry_after"}` 指标。
+          # 考量：双重条件可以过滤掉单次 RetryAfter（例如灰度更新）导致的误报，也能应对高流量场景的真实退避需求。
+          sum by (service_name, route_id, operation, protocol) (
+            increase(spark_request_retry_after_total[5m])
+          )
+          >= 5
+          and
+          sum by (service_name, route_id, operation, protocol) (
+            increase(spark_request_ready_state_total{ready_state="retry_after"}[5m])
+          )
+          /
+          clamp_min(
+            sum by (service_name, route_id, operation, protocol) (
+              increase(spark_request_ready_state_total[5m])
+            ),
+            1
+          )
+          >= 0.1
+        for: 2m
+        labels:
+          severity: warning
+          runbook: https://git.example.com/spark2026/docs/runbook/retry-after.md
+        annotations:
+          summary: "{{ $labels.service_name }}({{ $labels.route_id }}) RetryAfter 集中爆发"
+          description: |
+            过去 5 分钟内产生 {{ $value | humanize }} 次 RetryAfter，且占 ReadyState 总量的 10% 以上。请按照 Runbook 扩展退避、限流或降级策略。
+
+      - alert: SparkPipelineEpochDrift
+        expr: |
+          # 意图：检测 Pipeline 数据面的执行纪元 `epoch` 是否已经追平最新配置纪元 `config_epoch`，以确认热更新完成。
+          # 逻辑：对比同一服务/管线标签下的 `spark_pipeline_epoch` 与 `spark_pipeline_config_epoch`，若差值 ≥1 表示数据面仍未加载最新配置。
+          # 契约：两项指标需共享 `service_name`、`pipeline_id`、`route_id`、`operation` 标签；若部署仅在控制面暴露 config 指标，需确保数据面导出时补齐标签。
+          # 考量：`clamp_min` 防止缺少数据导致负值噪音；延迟窗口选择 5 分钟，兼顾大规模热更新的传播时延与误报控制。
+          clamp_min(
+            max by (service_name, pipeline_id, route_id, operation) (
+              spark_pipeline_config_epoch
+            )
+            -
+            max by (service_name, pipeline_id, route_id, operation) (
+              spark_pipeline_epoch
+            ),
+            0
+          )
+          >= 1
+        for: 5m
+        labels:
+          severity: critical
+          runbook: https://git.example.com/spark2026/docs/runbook/pipeline-epoch.md
+        annotations:
+          summary: "{{ $labels.service_name }}({{ $labels.pipeline_id }}) Pipeline 纪元落后"
+          description: |
+            Pipeline 数据面的执行纪元落后配置纪元至少 1。请参考 Runbook 排查热更新卡滞、节点离线或配置发布异常，避免旧逻辑继续处理流量。

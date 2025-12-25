@@ -1,0 +1,5 @@
+# 自动生成的 Fuzz 产物目录，防止污染主仓库。
+target
+corpus
+artifacts
+coverage

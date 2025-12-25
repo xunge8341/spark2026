@@ -1,0 +1,21 @@
+# 全局默认 Owner
+*                                       @spark-rs/core-maintainers
+
+# 治理文档与流程
+/docs/CEP.md                            @spark-rs/arch-board
+/docs/governance/                       @spark-rs/arch-board @spark-rs/core-maintainers
+
+# 核心运行时代码
+/crates/spark-core/                     @spark-rs/runtime-owners @spark-rs/core-maintainers
+/crates/spark-core/Cargo.toml           @spark-rs/runtime-owners @spark-rs/release-engineering
+
+# 编解码相关模块
+/crates/spark-codec-line/              @spark-rs/codec-team @spark-rs/core-maintainers
+
+# 构建与工具链
+/tools/                                 @spark-rs/tooling
+/Makefile                               @spark-rs/tooling @spark-rs/release-engineering
+
+# 发布与版本控制
+/Cargo.toml                             @spark-rs/release-engineering
+/Cargo.lock                             @spark-rs/release-engineering

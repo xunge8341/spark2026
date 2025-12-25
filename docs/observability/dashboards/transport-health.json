@@ -1,0 +1,142 @@
+{
+  "title": "Spark 传输层健康度",
+  "uid": "spark-transport-health",
+  "schemaVersion": 36,
+  "version": 1,
+  "timezone": "browser",
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "listener_id",
+        "label": "监听 ID",
+        "type": "query",
+        "datasource": "Prometheus",
+        "refresh": 2,
+        "query": "label_values(spark_transport_connections, listener_id)",
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": ""
+        }
+      },
+      {
+        "name": "transport_protocol",
+        "label": "协议",
+        "type": "query",
+        "datasource": "Prometheus",
+        "refresh": 2,
+        "query": "label_values(spark_transport_connections{listener_id=~\"$listener_id\"}, transport_protocol)",
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": ""
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "活跃连接数",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum by (peer_role) (spark_transport_connections{listener_id=~\"$listener_id\", transport_protocol=~\"$transport_protocol\"})",
+          "legendFormat": "{{peer_role}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "connections",
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "连接尝试/失败",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(spark_transport_channel_attempts{listener_id=~\"$listener_id\", transport_protocol=~\"$transport_protocol\", result=\"ok\"}[1m]))",
+          "legendFormat": "成功尝试"
+        },
+        {
+          "expr": "sum(rate(spark_transport_channel_failures{listener_id=~\"$listener_id\", transport_protocol=~\"$transport_protocol\"}[1m]))",
+          "legendFormat": "失败次数"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "connections/s",
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "握手 P90 延迟",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.9, sum by (le, peer_role) (rate(spark_transport_handshake_duration_bucket{listener_id=~\"$listener_id\", transport_protocol=~\"$transport_protocol\"}[5m])))",
+          "legendFormat": "{{peer_role}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "链路吞吐",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(spark_transport_bytes_inbound{listener_id=~\"$listener_id\", transport_protocol=~\"$transport_protocol\"}[1m]))",
+          "legendFormat": "入站"
+        },
+        {
+          "expr": "sum(rate(spark_transport_bytes_outbound{listener_id=~\"$listener_id\", transport_protocol=~\"$transport_protocol\"}[1m]))",
+          "legendFormat": "出站"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "失败错误类型",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum by (error_kind) (increase(spark_transport_channel_failures{listener_id=~\"$listener_id\", transport_protocol=~\"$transport_protocol\"}[5m]))",
+          "legendFormat": "{{error_kind}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "failures",
+          "min": 0
+        },
+        "overrides": []
+      }
+    }
+  ]
+}

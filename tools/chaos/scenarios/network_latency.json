@@ -1,0 +1,37 @@
+{
+  "id": "network_latency",
+  "title": "Service Mesh 出口网络延迟注入",
+  "description": "在服务网格出口处引入 200ms 延迟，验证整体容错与告警联动。",
+  "impact": "网关服务的 p95 延迟将短暂上升，考察限流与熔断策略能否生效。",
+  "steady_state_check": {
+    "metric": "latency_p95",
+    "threshold": 180,
+    "comparison": "<=",
+    "observation_window": "5m"
+  },
+  "steps": [
+    {
+      "id": "apply_latency",
+      "action": "shell",
+      "command": "tc qdisc replace dev eth0 root netem delay 200ms",
+      "rollback": "tc qdisc del dev eth0 root",
+      "expected_slo": {
+        "name": "latency_p95",
+        "comparison": "<=",
+        "threshold": 250
+      },
+      "observation": "确认熔断阈值触发但不超过 250ms，且自动恢复。"
+    },
+    {
+      "id": "verify_alerts",
+      "action": "check-metric",
+      "query": "latency_p95{service=\"edge-gateway\"}",
+      "expected_slo": {
+        "name": "latency_p95",
+        "comparison": "<=",
+        "threshold": 250
+      },
+      "observation": "Grafana 告警规则应在 2 分钟内产生告警并自动关闭。"
+    }
+  ]
+}

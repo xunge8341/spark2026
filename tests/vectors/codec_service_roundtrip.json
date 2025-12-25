@@ -1,0 +1,77 @@
+{
+  "suite": "codec-service-roundtrip",
+  "codec": {
+    "descriptor_name": "vector.echo.v1",
+    "content_type": "application/vnd.spark.vector-echo",
+    "content_encoding": "identity"
+  },
+  "cases": [
+    {
+      "label": "happy_path",
+      "request": {
+        "message": "ping",
+        "expected_encoded_hex": "70696e67",
+        "expected_decoded_roundtrip": "ping"
+      },
+      "service_attempts": [
+        {
+          "outcome": "ok",
+          "response": "pong",
+          "encoded_hex": "706f6e67"
+        }
+      ],
+      "decode_frames": [
+        {
+          "direction": "inbound",
+          "hex": "706f6e67",
+          "expected_message": "pong"
+        }
+      ]
+    },
+    {
+      "label": "non_retryable_error",
+      "request": {
+        "message": "fail-auth",
+        "expected_encoded_hex": "6661696c2d61757468",
+        "expected_decoded_roundtrip": "fail-auth"
+      },
+      "service_attempts": [
+        {
+          "outcome": "err",
+          "error_code": "app.unauthorized",
+          "error_message": "auth token rejected",
+          "category": "non_retryable"
+        }
+      ],
+      "decode_frames": []
+    },
+    {
+      "label": "retry_then_success",
+      "request": {
+        "message": "retry",
+        "expected_encoded_hex": "7265747279",
+        "expected_decoded_roundtrip": "retry"
+      },
+      "service_attempts": [
+        {
+          "outcome": "err",
+          "error_code": "app.unavailable",
+          "error_message": "temporal failure",
+          "category": "retryable"
+        },
+        {
+          "outcome": "ok",
+          "response": "recovered",
+          "encoded_hex": "7265636f7665726564"
+        }
+      ],
+      "decode_frames": [
+        {
+          "direction": "inbound",
+          "hex": "7265636f7665726564",
+          "expected_message": "recovered"
+        }
+      ]
+    }
+  ]
+}

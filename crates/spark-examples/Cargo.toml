@@ -1,0 +1,40 @@
+[package]
+name = "spark-examples"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+authors = ["Gemini 架构组 <architecture@gemini.example>"]
+description = "spark-examples: Pipeline 运行时示例的轻量级监听器协调器"
+
+[lib]
+path = "src/lib.rs"
+doctest = false
+test = false
+bench = false
+
+[[bin]]
+name = "audit_replay"
+path = "src/bin/audit_replay.rs"
+bench = false
+test = false
+doc = false
+
+[[bin]]
+name = "cancel_deadline_slo"
+path = "src/bin/cancel_deadline_slo.rs"
+bench = false
+test = false
+doc = false
+
+[features]
+default = ["alloc"]
+alloc = []
+std = ["alloc", "dep:spark-router"]
+
+[dependencies]
+spark-core = { workspace = true, default-features = false, features = ["alloc"] }
+spark-hosting = { workspace = true, default-features = false, features = ["alloc"] }
+spin = { workspace = true, default-features = false, features = ["mutex"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+spark-router = { workspace = true, default-features = false, features = ["std"], optional = true }

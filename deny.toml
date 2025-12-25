@@ -1,0 +1,269 @@
+[advisories]
+# 使用系统 git，规避托管平台对 HTTP Smart Protocol 的限制。
+git-fetch-with-cli = true
+unmaintained = "all"
+yanked = "warn"
+ignore = []
+
+[bans]
+# 教案级注释：
+# 目标（Why & Architecture）：CI 中 `cargo deny check bans` 负责阻断重复依赖带来的安全与维护隐患，
+# 因此我们在此处将 `multiple-versions` 设为 `deny`，让 cargo-deny 成为供应链治理门禁的一环。
+# 实现方式（How）：该选项会在检测到同一 crate 的多版本共存时立即返回非零状态，
+# 使 GitHub Actions 的「License & advisory audit」任务失败，从而阻止合并。
+# 契约（What & Preconditions）：此配置要求工作空间中的依赖图在执行守门前已被 cargo 完整解析，
+# 并保证若出现多版本依赖，流水线会终止；成功路径下维持单版本依赖或显式豁免。
+# 风险（Trade-offs）：在极少数情况下我们可能需要多版本共存，此时必须通过 deny.toml 的 `skip`/`allow` 做显式登记，
+# 以避免开发者在 CI 中遇到难以解释的失败，同时保持治理透明。
+multiple-versions = "deny"
+wildcards = "allow"
+
+[[bans.skip]]
+# 教案级注释：
+# - 目标：在保留 `cargo deny` 严格守门的同时，对无法避免的多版本依赖进行白名单登记，
+#   确保依赖治理的信息透明且可追踪。
+# - 架构背景：`opentelemetry` 当前仍停留在 `thiserror 1.x`，而 QUIC 通道（`quinn`）已经升级至 `thiserror 2.x`。
+#   由于两者都属于核心契约实现，短期内无法统一版本。
+# - 实现逻辑：通过 `skip` 将旧版本 (`1.0.69`) 标记为允许重复，CI 在检测到该版本时将放行；若未来上游完成升级，
+#   移除此条目即可恢复硬性约束。
+# - 契约：仅允许精确版本 `1.0.69` 的额外副本，其他版本依旧会触发阻断。
+# - 风险提示：过度使用 `skip` 会削弱治理力度，因此条目需保持最小化并在 ADR 中记录迁移计划。
+name = "thiserror"
+version = "1.0.69"
+reason = "opentelemetry 0.22 尚未升级到 thiserror 2.x，等待上游发布修订版本"
+
+[[bans.skip]]
+# 教案级注释：同步豁免宏实现 crate，避免 `thiserror-impl` 与 `thiserror` 的版本差异导致重复报错。
+name = "thiserror-impl"
+version = "1.0.69"
+reason = "与 thiserror 1.0.69 配套的宏 crate，需要与主库同步豁免"
+
+[[bans.skip]]
+# 教案级注释：
+# - 目标：容忍 QUIC 依赖链引入的 `rand` 0.9 系列，同时保持数据面 (`opentelemetry`) 仍使用 0.8。
+# - 架构背景：`quinn-proto` 采用 `rand` 0.9，并与 `fastbloom`/`rand_core`/`getrandom` 的 0.9 系列绑定；
+#   其随机数生成策略与 0.8 系列 API 不兼容，无法通过 `[patch]` 强制回退。
+# - 实现逻辑：仅对白名单版本 `0.9.2` 放行，其他版本若意外进入依赖图仍会触发 CI。
+# - 合同：调用方若禁用 QUIC (`spark-transport-quic`)，`rand 0.9` 将自动从图中移除，无需额外操作。
+# - 风险：未来若数据面组件也升级到 0.9，应同步移除此豁免并收敛到单一版本。
+name = "rand"
+version = "0.9.2"
+reason = "QUIC/fastbloom 依赖链固定在 rand 0.9，暂时无法回退"
+
+[[bans.skip]]
+# 教案级注释：
+# - 目标：允许与 `rand 0.9` 配套的 `rand_core` 在依赖图中共存。
+# - 背景：`fastbloom` 与 `proptest` 的最新版本要求 `rand_core 0.9`，
+#   但 `opentelemetry` 仍需 `rand_core 0.6`。
+# - 契约：仅跳过 `0.9.3`，维持对其它版本的严格校验。
+# - 风险：一旦上游全部迁移至 `0.9`，应移除该例外并重新执行版本收敛。
+name = "rand_core"
+version = "0.9.3"
+reason = "fastbloom / proptest 依赖 rand_core 0.9.x"
+
+[[bans.skip]]
+# 教案级注释：
+# - 目标：匹配 `rand` 0.9 系列的 `rand_chacha`，避免 `cargo deny` 误报。
+# - 背景：`rand_chacha 0.9.0` 只被 `proptest` 用作测试随机源，
+#   运行时代码仍使用 `rand_chacha 0.3.1`。
+# - 契约：同样限定在 `0.9.0`，保持对白名单的精准控制。
+name = "rand_chacha"
+version = "0.9.0"
+reason = "proptest 最新版本的测试随机数生成器"
+
+[[bans.skip]]
+# 教案级注释：
+# - 目标：允许 `getrandom` 0.3.x 作为 `rand` 0.9 的依赖出现。
+# - 背景：`getrandom` 从 0.3 起扩展了 WebAssembly 支持，`fastbloom`/`proptest` 现阶段无法回退到 0.2。
+# - 契约：保留 `0.2.16` 作为默认版本，仅对 `0.3.4` 额外放行。
+# - 风险：当所有上游迁移完成后需整理此豁免，避免历史包袱积累。
+name = "getrandom"
+version = "0.3.4"
+reason = "rand 0.9 系列依赖"
+
+[[bans.skip]]
+# 教案级注释：
+# - 目标：允许 `cfg_aliases` 的新旧版本共存，满足 `nix` 与 `quinn` 的构建脚本需求。
+# - 背景：`nix 0.28` 仍停留在 `cfg_aliases 0.1.x`，而 `quinn` 已经升级至 0.2。
+# - 契约：限定为 `0.1.1`，确保后续版本更新时需要显式评估。
+# - 风险：随着 `nix` 升级，需要及时移除该条目并重新评估构建脚本差异。
+name = "cfg_aliases"
+version = "0.1.1"
+reason = "nix 构建脚本尚未迁移到 cfg_aliases 0.2"
+
+[[bans.skip]]
+# 教案级注释：
+# - 目标：允许 Windows 目标三元组 crate 的旧版本与新版本共存，覆盖 `jni`、`ring`、`tokio` 等不同链路的需求。
+# - 背景：传输层依赖的 `tokio`/`quinn` 使用较新版本，而部分签名验证链仍停留在旧版。
+name = "windows-sys"
+version = "0.45.0"
+reason = "jni 通过 rustls-platform-verifier 引入旧版 windows-sys"
+
+[[bans.skip]]
+name = "windows-sys"
+version = "0.52.0"
+reason = "ring 依赖旧版 windows-sys，待 upstream 统一"
+
+[[bans.skip]]
+name = "windows-sys"
+version = "0.60.2"
+reason = "quinn-udp/tokio 仍依赖 windows-sys 0.60.x"
+
+[[bans.skip]]
+name = "windows_x86_64_gnullvm"
+version = "0.42.2"
+reason = "随 windows-sys 0.45.0 链路引入"
+
+[[bans.skip]]
+name = "windows_x86_64_gnullvm"
+version = "0.52.6"
+reason = "随 windows-sys 0.52.0 链路引入"
+
+[[bans.skip]]
+name = "windows_x86_64_gnullvm"
+version = "0.53.1"
+reason = "随 windows-sys 0.60.x 链路引入"
+
+[[bans.skip]]
+name = "windows_x86_64_msvc"
+version = "0.42.2"
+reason = "与 windows-sys 0.45.0 配套"
+
+[[bans.skip]]
+name = "windows_x86_64_msvc"
+version = "0.52.6"
+reason = "与 windows-sys 0.52.0 配套"
+
+[[bans.skip]]
+name = "windows_x86_64_msvc"
+version = "0.53.1"
+reason = "与 windows-sys 0.60.x 配套"
+
+[[bans.skip]]
+name = "windows-targets"
+version = "0.42.2"
+reason = "旧版 windows-sys 0.45.0 的配套三元组"
+
+[[bans.skip]]
+name = "windows-targets"
+version = "0.52.6"
+reason = "ring 仍依赖的 windows-sys 0.52.0 配套版本"
+
+[[bans.skip]]
+name = "windows-targets"
+version = "0.53.5"
+reason = "tokio 等依赖尚未升级到 0.61.x 链路"
+
+[[bans.skip]]
+name = "windows_aarch64_gnullvm"
+version = "0.42.2"
+reason = "随 windows-targets 0.42.2 引入"
+
+[[bans.skip]]
+name = "windows_aarch64_gnullvm"
+version = "0.52.6"
+reason = "随 windows-targets 0.52.6 引入"
+
+[[bans.skip]]
+name = "windows_aarch64_gnullvm"
+version = "0.53.1"
+reason = "随 windows-targets 0.53.5 引入"
+
+[[bans.skip]]
+name = "windows_aarch64_msvc"
+version = "0.42.2"
+reason = "旧版 windows-targets 0.42.2 配套"
+
+[[bans.skip]]
+name = "windows_aarch64_msvc"
+version = "0.52.6"
+reason = "与 windows-targets 0.52.6 保持一致"
+
+[[bans.skip]]
+name = "windows_aarch64_msvc"
+version = "0.53.1"
+reason = "与 windows-targets 0.53.5 保持一致"
+
+[[bans.skip]]
+name = "windows_i686_msvc"
+version = "0.42.2"
+reason = "与 windows-targets 0.42.2 配套"
+
+[[bans.skip]]
+name = "windows_i686_msvc"
+version = "0.52.6"
+reason = "与 windows-targets 0.52.6 配套"
+
+[[bans.skip]]
+name = "windows_i686_msvc"
+version = "0.53.1"
+reason = "与 windows-targets 0.53.5 配套"
+
+[[bans.skip]]
+name = "windows_x86_64_gnu"
+version = "0.42.2"
+reason = "与 windows-targets 0.42.2 配套"
+
+[[bans.skip]]
+name = "windows_x86_64_gnu"
+version = "0.52.6"
+reason = "与 windows-targets 0.52.6 配套"
+
+[[bans.skip]]
+name = "windows_x86_64_gnu"
+version = "0.53.1"
+reason = "与 windows-targets 0.53.5 配套"
+
+[[bans.skip]]
+name = "windows_i686_gnu"
+version = "0.42.2"
+reason = "与 windows-targets 0.42.2 配套"
+
+[[bans.skip]]
+name = "windows_i686_gnu"
+version = "0.52.6"
+reason = "与 windows-targets 0.52.6 配套"
+
+[[bans.skip]]
+name = "windows_i686_gnu"
+version = "0.53.1"
+reason = "与 windows-targets 0.53.5 配套"
+
+[[bans.skip]]
+name = "windows_i686_gnullvm"
+version = "0.52.6"
+reason = "与 windows-targets 0.52.6 配套"
+
+[[bans.skip]]
+name = "windows_i686_gnullvm"
+version = "0.53.1"
+reason = "与 windows-targets 0.53.5 配套"
+
+[licenses]
+allow = [
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "CC0-1.0",
+  "CDLA-Permissive-2.0",
+  "ISC",
+  "MIT",
+  "OpenSSL",
+  "Unicode-3.0",
+  "Zlib",
+]
+exceptions = [
+  { name = "ring", allow = ["ISC", "OpenSSL", "BSD-3-Clause"] },
+]
+confidence-threshold = 0.8
+
+[licenses.private]
+ignore = false
+registries = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

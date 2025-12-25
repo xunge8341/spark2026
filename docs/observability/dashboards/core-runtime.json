@@ -1,0 +1,190 @@
+{
+  "title": "Spark 核心调用链总览",
+  "uid": "spark-core-runtime",
+  "schemaVersion": 36,
+  "version": 1,
+  "timezone": "browser",
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "service_name",
+        "label": "服务",
+        "type": "query",
+        "datasource": "Prometheus",
+        "refresh": 2,
+        "query": "label_values(spark_request_total, service_name)",
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": ""
+        }
+      },
+      {
+        "name": "route_id",
+        "label": "路由",
+        "type": "query",
+        "datasource": "Prometheus",
+        "refresh": 2,
+        "query": "label_values(spark_request_total{service_name=~\"$service_name\"}, route_id)",
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": ""
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "请求吞吐量 (RPS)",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum by (operation) (rate(spark_request_total{service_name=~\"$service_name\", route_id=~\"$route_id\"}[1m]))",
+          "legendFormat": "{{operation}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "成功率 (1 - 错误率)",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "1 - sum(rate(spark_request_total{outcome=\"error\", service_name=~\"$service_name\", route_id=~\"$route_id\"}[5m])) / sum(rate(spark_request_total{service_name=~\"$service_name\", route_id=~\"$route_id\"}[5m]))",
+          "legendFormat": "总成功率"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "P99 延迟",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le, operation) (rate(spark_request_duration_bucket{service_name=~\"$service_name\", route_id=~\"$route_id\"}[5m])))",
+          "legendFormat": "{{operation}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "入站/出站字节",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(spark_bytes_inbound{service_name=~\"$service_name\", route_id=~\"$route_id\"}[1m]))",
+          "legendFormat": "入站"
+        },
+        {
+          "expr": "sum(rate(spark_bytes_outbound{service_name=~\"$service_name\", route_id=~\"$route_id\"}[1m]))",
+          "legendFormat": "出站"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+  {
+    "id": 5,
+    "type": "timeseries",
+    "title": "并发请求 (Inflight)",
+    "datasource": "Prometheus",
+    "targets": [
+      {
+        "expr": "sum by (operation) (spark_request_inflight{service_name=~\"$service_name\", route_id=~\"$route_id\"})",
+        "legendFormat": "{{operation}}"
+      }
+    ],
+    "fieldConfig": {
+      "defaults": {
+        "unit": "requests",
+        "min": 0
+      },
+      "overrides": []
+    }
+  },
+  {
+    "id": 6,
+    "type": "timeseries",
+    "title": "RetryAfter 节律",
+    "datasource": "Prometheus",
+    "targets": [
+      {
+        "expr": "sum by (ready_detail) (rate(spark_request_retry_after_total{service_name=~\"$service_name\", route_id=~\"$route_id\"}[5m]))",
+        "legendFormat": "{{ready_detail}} 次/秒"
+      },
+      {
+        "expr": "histogram_quantile(0.95, sum by (le) (rate(spark_request_retry_after_delay_ms_bucket{service_name=~\"$service_name\", route_id=~\"$route_id\"}[5m])))",
+        "legendFormat": "P95 延迟 (ms)"
+      }
+    ],
+    "fieldConfig": {
+      "defaults": {
+        "min": 0
+      },
+      "overrides": [
+        {
+          "matcher": {
+            "id": "byName",
+            "options": "P95 延迟 (ms)"
+          },
+          "properties": [
+            {
+              "id": "unit",
+              "value": "ms"
+            }
+          ]
+        },
+        {
+          "matcher": {
+            "id": "byRegexp",
+            "options": ".*次/秒"
+          },
+          "properties": [
+            {
+              "id": "unit",
+              "value": "ops"
+            },
+            {
+              "id": "custom.axisPlacement",
+              "value": "right"
+            }
+          ]
+        }
+      ]
+    }
+  }
+]
+}

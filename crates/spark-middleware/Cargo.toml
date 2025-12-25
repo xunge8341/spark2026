@@ -1,0 +1,24 @@
+[package]
+name = "spark-middleware"
+version = "0.1.0"
+edition.workspace = true
+rust-version = "1.89"
+authors = ["Gemini 架构组 <architecture@gemini.example>"]
+license = "Apache-2.0"
+description = "spark-middleware: Spark Pipeline 可复用中间件组件集"
+
+[lib]
+name = "spark_middleware"
+path = "src/lib.rs"
+bench = false
+
+[dependencies]
+spark-core = { workspace = true, default-features = false }
+
+[features]
+default = ["alloc"]
+alloc = []
+std = ["alloc", "spark-core/std"]
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)', 'cfg(spark_loom)'] }

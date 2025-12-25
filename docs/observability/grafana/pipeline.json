@@ -1,0 +1,214 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "Prometheus 数据源",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "9.3.0"
+    },
+    {
+      "type": "datasource",
+      "id": "prometheus",
+      "name": "Prometheus",
+      "version": "1.0.0"
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Pipeline 执行纪元 (epoch) 与配置纪元 (config_epoch) 差异监控，配合 docs/runbook/pipeline-epoch.md 使用。",
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": "${DS_PROMETHEUS}",
+      "description": "对比配置纪元与数据面纪元，确认热更新是否已经传播至所有实例。",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "max by (service_name, pipeline_id) (spark_pipeline_epoch{service_name=~\"$service_name\", pipeline_id=~\"$pipeline_id\"})",
+          "legendFormat": "epoch (data plane)",
+          "refId": "A"
+        },
+        {
+          "expr": "max by (service_name, pipeline_id) (spark_pipeline_config_epoch{service_name=~\"$service_name\", pipeline_id=~\"$pipeline_id\"})",
+          "legendFormat": "config_epoch",
+          "refId": "B"
+        }
+      ],
+      "title": "Pipeline 纪元对比",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "${DS_PROMETHEUS}",
+      "description": "当前配置纪元与数据面纪元的差值，>=1 表示热更新仍在传播。",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {}
+      },
+      "targets": [
+        {
+          "expr": "clamp_min((max by (service_name, pipeline_id) (spark_pipeline_config_epoch{service_name=~\"$service_name\", pipeline_id=~\"$pipeline_id\"}) - on (service_name, pipeline_id) max by (service_name, pipeline_id) (spark_pipeline_epoch{service_name=~\"$service_name\", pipeline_id=~\"$pipeline_id\"})), 0)",
+          "legendFormat": "config - data",
+          "refId": "A"
+        }
+      ],
+      "title": "纪元差值（last）",
+      "type": "stat"
+    },
+    {
+      "datasource": "${DS_PROMETHEUS}",
+      "description": "各实例上报的纪元分布，帮助识别卡滞节点。",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      },
+      "targets": [
+        {
+          "expr": "spark_pipeline_epoch{service_name=~\"$service_name\", pipeline_id=~\"$pipeline_id\"}",
+          "legendFormat": "{{instance}} epoch",
+          "refId": "A"
+        },
+        {
+          "expr": "spark_pipeline_config_epoch{service_name=~\"$service_name\", pipeline_id=~\"$pipeline_id\"}",
+          "legendFormat": "{{instance}} config_epoch",
+          "refId": "B"
+        }
+      ],
+      "title": "实例级纪元明细",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 37,
+  "style": "dark",
+  "tags": [
+    "spark",
+    "pipeline"
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "service_name",
+        "type": "query",
+        "datasource": "${DS_PROMETHEUS}",
+        "definition": "label_values(spark_pipeline_epoch, service_name)",
+        "query": "label_values(spark_pipeline_epoch, service_name)",
+        "refresh": 1,
+        "current": {}
+      },
+      {
+        "name": "pipeline_id",
+        "type": "query",
+        "datasource": "${DS_PROMETHEUS}",
+        "definition": "label_values(spark_pipeline_epoch{service_name=~\"$service_name\"}, pipeline_id)",
+        "query": "label_values(spark_pipeline_epoch{service_name=~\"$service_name\"}, pipeline_id)",
+        "refresh": 1,
+        "current": {}
+      }
+    ]
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "30s",
+      "1m",
+      "5m",
+      "15m"
+    ]
+  },
+  "timezone": "",
+  "title": "Spark Pipeline Epoch",
+  "uid": "spark-pipeline-epoch",
+  "version": 1,
+  "weekStart": ""
+}

@@ -1,0 +1,30 @@
+[package]
+name = "spark-otel"
+version = "0.1.0"
+edition.workspace = true
+rust-version = "1.89"
+authors = ["Gemini 架构组 <architecture@gemini.example>"]
+license = "Apache-2.0"
+description = "spark-otel: spark-core 与 OpenTelemetry 的零配置集成层"
+
+[lib]
+# 教案级说明：目前 crate 未提供 Criterion 基准，若保留默认 `bench = true`，
+# 在执行 `cargo bench -- --quick` 时将触发 libtest 对未识别参数的报错。
+# 显式关闭 bench 生成可避免误报，同时保持后续若新增基准测试时再开启的灵活性。
+bench = false
+
+[features]
+default = []
+test-util = ["dep:futures-util"]
+
+[dependencies]
+spark-core = { workspace = true, features = ["std"] }
+opentelemetry = { workspace = true, default-features = false, features = ["trace"] }
+opentelemetry-sdk = { workspace = true, default-features = false, features = ["trace"] }
+tracing = { workspace = true }
+tracing-opentelemetry = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
+futures-util = { workspace = true, default-features = false, features = ["std"], optional = true }
+
+[dev-dependencies]
+tracing-test = { workspace = true }

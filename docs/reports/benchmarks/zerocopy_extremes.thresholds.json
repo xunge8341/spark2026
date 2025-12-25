@@ -1,0 +1,207 @@
+{
+  "benchmark": "zerocopy_extremes",
+  "modes": [
+    {
+      "quick_mode": true,
+      "scenarios": [
+        {
+          "name": "payload_1kb_chunks_1",
+          "operations": [
+            {"kind": "encode", "max_p99_ns_per_kb": 1000.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "decode", "max_p99_ns_per_kb": 1000.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "forward", "max_p99_ns_per_kb": 1000.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null}
+          ]
+        },
+        {
+          "name": "payload_1kb_chunks_4",
+          "operations": [
+            {"kind": "encode", "max_p99_ns_per_kb": 1000.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "decode", "max_p99_ns_per_kb": 1000.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "forward", "max_p99_ns_per_kb": 1000.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null}
+          ]
+        },
+        {
+          "name": "payload_1kb_chunks_8",
+          "operations": [
+            {"kind": "encode", "max_p99_ns_per_kb": 1000.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "decode", "max_p99_ns_per_kb": 1000.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "forward", "max_p99_ns_per_kb": 1000.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null}
+          ]
+        },
+        {
+          "name": "payload_1kb_chunks_32",
+          "operations": [
+            {"kind": "encode", "max_p99_ns_per_kb": 1000.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "decode", "max_p99_ns_per_kb": 1000.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "forward", "max_p99_ns_per_kb": 1000.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null}
+          ]
+        },
+        {
+          "name": "payload_64kb_chunks_1",
+          "operations": [
+            {"kind": "encode", "max_p99_ns_per_kb": 10.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "decode", "max_p99_ns_per_kb": 10.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "forward", "max_p99_ns_per_kb": 10.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null}
+          ]
+        },
+        {
+          "name": "payload_64kb_chunks_4",
+          "operations": [
+            {"kind": "encode", "max_p99_ns_per_kb": 10.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "decode", "max_p99_ns_per_kb": 10.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "forward", "max_p99_ns_per_kb": 10.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null}
+          ]
+        },
+        {
+          "name": "payload_64kb_chunks_8",
+          "operations": [
+            {"kind": "encode", "max_p99_ns_per_kb": 10.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "decode", "max_p99_ns_per_kb": 10.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "forward", "max_p99_ns_per_kb": 10.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null}
+          ]
+        },
+        {
+          "name": "payload_64kb_chunks_32",
+          "operations": [
+            {"kind": "encode", "max_p99_ns_per_kb": 10.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "decode", "max_p99_ns_per_kb": 10.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "forward", "max_p99_ns_per_kb": 10.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null}
+          ]
+        },
+        {
+          "name": "payload_1mb_chunks_1",
+          "operations": [
+            {"kind": "encode", "max_p99_ns_per_kb": 1.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "decode", "max_p99_ns_per_kb": 1.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "forward", "max_p99_ns_per_kb": 1.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null}
+          ]
+        },
+        {
+          "name": "payload_1mb_chunks_4",
+          "operations": [
+            {"kind": "encode", "max_p99_ns_per_kb": 1.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "decode", "max_p99_ns_per_kb": 1.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "forward", "max_p99_ns_per_kb": 1.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null}
+          ]
+        },
+        {
+          "name": "payload_1mb_chunks_8",
+          "operations": [
+            {"kind": "encode", "max_p99_ns_per_kb": 1.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "decode", "max_p99_ns_per_kb": 1.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "forward", "max_p99_ns_per_kb": 1.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null}
+          ]
+        },
+        {
+          "name": "payload_1mb_chunks_32",
+          "operations": [
+            {"kind": "encode", "max_p99_ns_per_kb": 1.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "decode", "max_p99_ns_per_kb": 1.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "forward", "max_p99_ns_per_kb": 1.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null}
+          ]
+        }
+      ]
+    },
+    {
+      "quick_mode": false,
+      "scenarios": [
+        {
+          "name": "payload_1kb_chunks_1",
+          "operations": [
+            {"kind": "encode", "max_p99_ns_per_kb": 1000.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "decode", "max_p99_ns_per_kb": 1000.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "forward", "max_p99_ns_per_kb": 1000.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null}
+          ]
+        },
+        {
+          "name": "payload_1kb_chunks_4",
+          "operations": [
+            {"kind": "encode", "max_p99_ns_per_kb": 1000.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "decode", "max_p99_ns_per_kb": 1000.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "forward", "max_p99_ns_per_kb": 1000.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null}
+          ]
+        },
+        {
+          "name": "payload_1kb_chunks_8",
+          "operations": [
+            {"kind": "encode", "max_p99_ns_per_kb": 1000.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "decode", "max_p99_ns_per_kb": 1000.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "forward", "max_p99_ns_per_kb": 1000.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null}
+          ]
+        },
+        {
+          "name": "payload_1kb_chunks_32",
+          "operations": [
+            {"kind": "encode", "max_p99_ns_per_kb": 1000.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "decode", "max_p99_ns_per_kb": 1000.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "forward", "max_p99_ns_per_kb": 1000.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null}
+          ]
+        },
+        {
+          "name": "payload_64kb_chunks_1",
+          "operations": [
+            {"kind": "encode", "max_p99_ns_per_kb": 10.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "decode", "max_p99_ns_per_kb": 10.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "forward", "max_p99_ns_per_kb": 10.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null}
+          ]
+        },
+        {
+          "name": "payload_64kb_chunks_4",
+          "operations": [
+            {"kind": "encode", "max_p99_ns_per_kb": 10.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "decode", "max_p99_ns_per_kb": 10.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "forward", "max_p99_ns_per_kb": 10.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null}
+          ]
+        },
+        {
+          "name": "payload_64kb_chunks_8",
+          "operations": [
+            {"kind": "encode", "max_p99_ns_per_kb": 10.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "decode", "max_p99_ns_per_kb": 10.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "forward", "max_p99_ns_per_kb": 10.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null}
+          ]
+        },
+        {
+          "name": "payload_64kb_chunks_32",
+          "operations": [
+            {"kind": "encode", "max_p99_ns_per_kb": 10.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "decode", "max_p99_ns_per_kb": 10.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "forward", "max_p99_ns_per_kb": 10.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null}
+          ]
+        },
+        {
+          "name": "payload_1mb_chunks_1",
+          "operations": [
+            {"kind": "encode", "max_p99_ns_per_kb": 1.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "decode", "max_p99_ns_per_kb": 1.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "forward", "max_p99_ns_per_kb": 1.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null}
+          ]
+        },
+        {
+          "name": "payload_1mb_chunks_4",
+          "operations": [
+            {"kind": "encode", "max_p99_ns_per_kb": 1.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "decode", "max_p99_ns_per_kb": 1.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "forward", "max_p99_ns_per_kb": 1.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null}
+          ]
+        },
+        {
+          "name": "payload_1mb_chunks_8",
+          "operations": [
+            {"kind": "encode", "max_p99_ns_per_kb": 1.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "decode", "max_p99_ns_per_kb": 1.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "forward", "max_p99_ns_per_kb": 1.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null}
+          ]
+        },
+        {
+          "name": "payload_1mb_chunks_32",
+          "operations": [
+            {"kind": "encode", "max_p99_ns_per_kb": 1.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "decode", "max_p99_ns_per_kb": 1.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null},
+            {"kind": "forward", "max_p99_ns_per_kb": 1.0, "max_mean_ns_per_kb": null, "max_p99_overhead_pct": null}
+          ]
+        }
+      ]
+    }
+  ]
+}

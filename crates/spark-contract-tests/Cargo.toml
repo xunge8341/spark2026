@@ -1,0 +1,27 @@
+[package]
+name = "spark-contract-tests"
+version = "0.1.0"
+edition.workspace = true
+license = "Apache-2.0"
+authors = ["Gemini 架构组 <architecture@gemini.example>"]
+description = "Spark 契约测试套件（TCK），为第三方实现提供一键回归能力"
+repository = "https://github.com/gemini/spark2026"
+documentation = "https://docs.rs/spark-contract-tests"
+
+[lib]
+name = "spark_contract_tests"
+path = "src/lib.rs"
+bench = false
+
+[features]
+default = ["std"]
+std = []
+alloc = ["std"]
+
+[dependencies]
+spark-core = { workspace = true, features = ["std"] }
+spark-codec-line = { workspace = true }
+spark-contract-tests-macros = { workspace = true }
+parking_lot = { workspace = true }
+spark-hosting = { workspace = true, features = ["std"] }
+spark-otel = { workspace = true }

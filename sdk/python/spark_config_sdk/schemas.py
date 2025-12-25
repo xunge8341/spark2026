@@ -1,0 +1,848 @@
+"""
+Schema 访问器：提供 JSON Schema 与 AsyncAPI 的懒加载封装。
+
+Why:
+    - 确保测试与 SDK 使用者无需重新读取磁盘即可访问 SOT。
+How:
+    - 将 JSON 文本嵌入常量，再通过 json.loads 转换为字典。
+What:
+    - load_json_schema() / load_asyncapi()。
+"""
+
+import json
+from functools import lru_cache
+from typing import Any, Dict
+
+_SCHEMA_TEXT = r'''{
+  "$defs": {
+    "ConfigurationCalibrationRequested": {
+      "additionalProperties": false,
+      "description": "当观测到集群状态可能偏离（如心跳上报的哈希与控制面不一致）时，控制面会发送校准请求，并将关键信息记录到审计事件中，确保后续回放能够追踪责任节点与触发原因。",
+      "properties": {
+        "controller_id": {
+          "description": "发起校准的控制面节点或逻辑控制器 ID。",
+          "type": "string"
+        },
+        "expected_hash": {
+          "description": "控制面计算的期望配置哈希，用于对比节点上报数据。",
+          "type": "string"
+        },
+        "observed_hash": {
+          "description": "触发本次请求的节点哈希值，帮助快速定位偏差来源。",
+          "type": "string"
+        },
+        "profile_id": {
+          "description": "需要校准的配置 Profile 标识，对应类型 ProfileId。",
+          "type": "string"
+        },
+        "reason": {
+          "description": "附加说明或触发原因，例如 \"hash_mismatch\"、\"stale_revision\"。",
+          "type": "string"
+        }
+      },
+      "required": [
+        "profile_id",
+        "controller_id",
+        "expected_hash",
+        "observed_hash"
+      ],
+      "title": "控制面向运行面发布的校准请求，用于触发目标节点重新拉取或对齐配置。",
+      "type": "object",
+      "x-detail": "当观测到集群状态可能偏离（如心跳上报的哈希与控制面不一致）时，控制面会发送校准请求，并将关键信息记录到审计事件中，确保后续回放能够追踪责任节点与触发原因。",
+      "x-fieldOrder": [
+        "profile_id",
+        "controller_id",
+        "expected_hash",
+        "observed_hash",
+        "reason"
+      ],
+      "x-summary": "控制面向运行面发布的校准请求，用于触发目标节点重新拉取或对齐配置。"
+    },
+    "ConfigurationConsistencyRestored": {
+      "additionalProperties": false,
+      "description": "在完成自动或人工校准后，控制面会发布一致性恢复事件，记录最终稳定哈希、耗时以及关联的漂移/校准事件 ID，形成完整的闭环证据链。",
+      "properties": {
+        "duration_ms": {
+          "description": "从漂移检测到一致性恢复的耗时（毫秒）。",
+          "format": "uint64",
+          "type": "integer"
+        },
+        "profile_id": {
+          "description": "恢复一致性的配置 Profile 标识。",
+          "type": "string"
+        },
+        "reconciled_nodes": {
+          "description": "成功完成校准的节点 ID 列表。",
+          "items": {
+            "description": "成功完成校准的节点 ID 列表。",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "source_event_id": {
+          "description": "触发本次恢复的上游事件 ID（如漂移或校准事件），便于串联审计链。",
+          "type": "string"
+        },
+        "stable_hash": {
+          "description": "最终达成一致的哈希值。",
+          "type": "string"
+        }
+      },
+      "required": [
+        "profile_id",
+        "stable_hash",
+        "reconciled_nodes",
+        "duration_ms"
+      ],
+      "title": "通知治理与审计系统集群已恢复一致状态，便于闭环漂移处理流程。",
+      "type": "object",
+      "x-detail": "在完成自动或人工校准后，控制面会发布一致性恢复事件，记录最终稳定哈希、耗时以及关联的漂移/校准事件 ID，形成完整的闭环证据链。",
+      "x-fieldOrder": [
+        "profile_id",
+        "stable_hash",
+        "reconciled_nodes",
+        "duration_ms",
+        "source_event_id"
+      ],
+      "x-summary": "通知治理与审计系统集群已恢复一致状态，便于闭环漂移处理流程。"
+    },
+    "ConfigurationDriftDetected": {
+      "additionalProperties": false,
+      "description": "运行面每个节点周期性汇报配置哈希与差异键集合，控制面在窗口内汇总后生成漂移事件，事件负载需携带全部漂移节点及其差异详情，供审计与排障使用。",
+      "properties": {
+        "divergent_nodes": {
+          "description": "漂移节点的完整快照集合，按照差异得分降序排列。",
+          "items": {
+            "$ref": "#/$defs/DriftNodeSnapshot",
+            "description": "漂移节点的完整快照集合，按照差异得分降序排列。"
+          },
+          "type": "array"
+        },
+        "drift_window_ms": {
+          "description": "漂移聚合的观测窗口大小（毫秒）。",
+          "format": "uint64",
+          "type": "integer"
+        },
+        "expected_hash": {
+          "description": "控制面认为的黄金配置哈希。",
+          "type": "string"
+        },
+        "majority_hash": {
+          "description": "在当前窗口内占多数的哈希值，便于评估漂移面是否集中。",
+          "type": "string"
+        },
+        "observed_node_count": {
+          "description": "在窗口内上报的节点数量，用于评估样本覆盖度。",
+          "format": "uint64",
+          "type": "integer"
+        },
+        "profile_id": {
+          "description": "出现漂移的配置 Profile 标识。",
+          "type": "string"
+        }
+      },
+      "required": [
+        "profile_id",
+        "expected_hash",
+        "majority_hash",
+        "drift_window_ms",
+        "observed_node_count",
+        "divergent_nodes"
+      ],
+      "title": "聚合多节点上报，识别集群内的配置漂移并输出结构化差异列表。",
+      "type": "object",
+      "x-detail": "运行面每个节点周期性汇报配置哈希与差异键集合，控制面在窗口内汇总后生成漂移事件，事件负载需携带全部漂移节点及其差异详情，供审计与排障使用。",
+      "x-fieldOrder": [
+        "profile_id",
+        "expected_hash",
+        "majority_hash",
+        "drift_window_ms",
+        "observed_node_count",
+        "divergent_nodes"
+      ],
+      "x-summary": "聚合多节点上报，识别集群内的配置漂移并输出结构化差异列表。"
+    },
+    "DriftNodeSnapshot": {
+      "additionalProperties": false,
+      "description": "包含节点标识、哈希值以及漂移的配置键集合，生成器会根据该结构创建 `ConfigurationDriftDetected` 事件的嵌套字段。",
+      "properties": {
+        "delta_score": {
+          "description": "差异数量得分，通常等于 `difference_keys` 的长度，用于在事件中按照严重程度排序节点。",
+          "format": "uint64",
+          "type": "integer"
+        },
+        "difference_keys": {
+          "description": "与期望配置相比存在差异的键集合，列表顺序在聚合器中会被排序以保证稳定 diff。",
+          "items": {
+            "description": "与期望配置相比存在差异的键集合，列表顺序在聚合器中会被排序以保证稳定 diff。",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "node_id": {
+          "description": "节点逻辑标识，通常对应服务拓扑中的唯一 NodeId。",
+          "type": "string"
+        },
+        "observed_hash": {
+          "description": "当前节点从本地状态计算出的配置哈希。",
+          "type": "string"
+        }
+      },
+      "required": [
+        "node_id",
+        "observed_hash",
+        "difference_keys",
+        "delta_score"
+      ],
+      "title": "描述检测到配置漂移的节点快照。",
+      "type": "object",
+      "x-detail": "包含节点标识、哈希值以及漂移的配置键集合，生成器会根据该结构创建 `ConfigurationDriftDetected` 事件的嵌套字段。",
+      "x-fieldOrder": [
+        "node_id",
+        "observed_hash",
+        "difference_keys",
+        "delta_score"
+      ],
+      "x-rationale": "用于事件负载记录差异节点，便于审计与排障人员快速定位问题主机。",
+      "x-summary": "描述检测到配置漂移的节点快照。"
+    }
+  },
+  "$id": "https://github.com/spark-rs/spark2026/configuration-events.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "配置控制面与审计事件的统一契约：覆盖自动校准、漂移检测与一致性恢复信号。",
+  "properties": {
+    "events": {
+      "additionalProperties": false,
+      "description": "事件 payload 的定义集合，键为事件结构体 ident。",
+      "properties": {
+        "ConfigurationCalibrationRequested": {
+          "$ref": "#/$defs/ConfigurationCalibrationRequested",
+          "description": "控制面向运行面发布的校准请求，用于触发目标节点重新拉取或对齐配置。"
+        },
+        "ConfigurationConsistencyRestored": {
+          "$ref": "#/$defs/ConfigurationConsistencyRestored",
+          "description": "通知治理与审计系统集群已恢复一致状态，便于闭环漂移处理流程。"
+        },
+        "ConfigurationDriftDetected": {
+          "$ref": "#/$defs/ConfigurationDriftDetected",
+          "description": "聚合多节点上报，识别集群内的配置漂移并输出结构化差异列表。"
+        }
+      },
+      "required": [
+        "ConfigurationCalibrationRequested",
+        "ConfigurationDriftDetected",
+        "ConfigurationConsistencyRestored"
+      ],
+      "type": "object",
+      "x-eventOrder": [
+        "ConfigurationCalibrationRequested",
+        "ConfigurationDriftDetected",
+        "ConfigurationConsistencyRestored"
+      ]
+    },
+    "version": {
+      "const": "1.0.0",
+      "type": "string"
+    }
+  },
+  "required": [
+    "version",
+    "events"
+  ],
+  "title": "Spark Configuration Events",
+  "type": "object",
+  "x-errorMatrix": {
+    "app.backpressure_applied": {
+      "busy": "downstream",
+      "kind": "retryable",
+      "rationale": "业务端主动背压，需遵守等待窗口。",
+      "reason": "下游正在施加背压，遵循等待窗口",
+      "tuning": "可结合速率控制调整等待时间。",
+      "wait_ms": 180
+    },
+    "app.routing_failed": {
+      "kind": "non_retryable",
+      "rationale": "目标服务不存在或路由失败，需业务人工干预。",
+      "tuning": "在具备兜底副本时可标记为 Retryable。"
+    },
+    "app.unauthorized": {
+      "class": "authorization",
+      "kind": "security",
+      "rationale": "权限不足，记录安全事件并关闭通道。",
+      "tuning": "可通过自定义 Handler 触发补偿。"
+    },
+    "cluster.leader_lost": {
+      "busy": "upstream",
+      "kind": "retryable",
+      "rationale": "集群拓扑暂时不可用，建议延后重试。",
+      "reason": "集群节点暂不可用，稍后重试",
+      "tuning": "可根据集群健康状况调整等待。",
+      "wait_ms": 250
+    },
+    "cluster.network_partition": {
+      "busy": "upstream",
+      "kind": "retryable",
+      "rationale": "集群拓扑暂时不可用，建议延后重试。",
+      "reason": "集群节点暂不可用，稍后重试",
+      "tuning": "可根据集群健康状况调整等待。",
+      "wait_ms": 250
+    },
+    "cluster.node_unavailable": {
+      "busy": "upstream",
+      "kind": "retryable",
+      "rationale": "集群拓扑暂时不可用，建议延后重试。",
+      "reason": "集群节点暂不可用，稍后重试",
+      "tuning": "可根据集群健康状况调整等待。",
+      "wait_ms": 250
+    },
+    "cluster.queue_overflow": {
+      "budget": "flow",
+      "kind": "resource_exhausted",
+      "rationale": "集群队列满，触发速率背压。",
+      "tuning": "可扩容队列或自定义 BudgetKind。"
+    },
+    "cluster.service_not_found": {
+      "kind": "non_retryable",
+      "rationale": "目标服务不存在或路由失败，需业务人工干预。",
+      "tuning": "在具备兜底副本时可标记为 Retryable。"
+    },
+    "discovery.stale_read": {
+      "busy": "upstream",
+      "kind": "retryable",
+      "rationale": "服务发现数据陈旧，等待刷新后再试。",
+      "reason": "服务发现数据陈旧，等待刷新",
+      "tuning": "可结合监控加长等待时长。",
+      "wait_ms": 120
+    },
+    "protocol.budget_exceeded": {
+      "budget": "decode",
+      "kind": "resource_exhausted",
+      "rationale": "解码预算耗尽，触发背压。",
+      "tuning": "可在 CallContext 注册定制预算。"
+    },
+    "protocol.decode": {
+      "close_message": "检测到协议契约违规，已触发优雅关闭",
+      "kind": "protocol_violation",
+      "rationale": "协议契约被破坏，必须关闭连接。",
+      "tuning": "若协议允许纠正，可改写为 Retryable。"
+    },
+    "protocol.negotiation": {
+      "close_message": "检测到协议契约违规，已触发优雅关闭",
+      "kind": "protocol_violation",
+      "rationale": "协议契约被破坏，必须关闭连接。",
+      "tuning": "若协议允许纠正，可改写为 Retryable。"
+    },
+    "protocol.type_mismatch": {
+      "close_message": "检测到协议契约违规，已触发优雅关闭",
+      "kind": "protocol_violation",
+      "rationale": "协议契约被破坏，必须关闭连接。",
+      "tuning": "若协议允许纠正，可改写为 Retryable。"
+    },
+    "router.version_conflict": {
+      "close_message": "检测到协议契约违规，已触发优雅关闭",
+      "kind": "protocol_violation",
+      "rationale": "协议契约被破坏，必须关闭连接。",
+      "tuning": "若协议允许纠正，可改写为 Retryable。"
+    },
+    "runtime.shutdown": {
+      "kind": "cancelled",
+      "rationale": "运行时已进入关闭流程，终止后续逻辑。",
+      "tuning": "若需等待收尾，可改写为 Retryable。"
+    },
+    "transport.io": {
+      "busy": "downstream",
+      "kind": "retryable",
+      "rationale": "典型 TCP/QUIC I/O 故障，建议短暂退避。",
+      "reason": "传输层 I/O 故障，等待链路恢复后重试",
+      "tuning": "可根据重试策略调整等待窗口。",
+      "wait_ms": 150
+    },
+    "transport.timeout": {
+      "kind": "timeout",
+      "rationale": "传输层请求超时，触发调用取消。",
+      "tuning": "若需继续等待，可显式改写分类。"
+    }
+  },
+  "x-structOrder": [
+    "DriftNodeSnapshot"
+  ]
+}'''
+_ASYNCAPI_TEXT = r'''{
+  "asyncapi": "2.6.0",
+  "channels": {
+    "configuration.calibration.requested": {
+      "publish": {
+        "message": {
+          "$ref": "#/components/messages/ConfigurationCalibrationRequested"
+        },
+        "summary": "发布 配置校准请求 事件"
+      }
+    },
+    "configuration.consistency.restored": {
+      "publish": {
+        "message": {
+          "$ref": "#/components/messages/ConfigurationConsistencyRestored"
+        },
+        "summary": "发布 配置一致性恢复 事件"
+      }
+    },
+    "configuration.drift.detected": {
+      "publish": {
+        "message": {
+          "$ref": "#/components/messages/ConfigurationDriftDetected"
+        },
+        "summary": "发布 配置漂移检测 事件"
+      }
+    }
+  },
+  "components": {
+    "messages": {
+      "ConfigurationCalibrationRequested": {
+        "contentType": "application/json",
+        "description": "当观测到集群状态可能偏离（如心跳上报的哈希与控制面不一致）时，控制面会发送校准请求，并将关键信息记录到审计事件中，确保后续回放能够追踪责任节点与触发原因。",
+        "name": "configuration.calibration.requested",
+        "payload": {
+          "$ref": "#/components/schemas/ConfigurationCalibrationRequested"
+        },
+        "summary": "控制面向运行面发布的校准请求，用于触发目标节点重新拉取或对齐配置。",
+        "tags": [
+          {
+            "name": "family:calibration"
+          },
+          {
+            "name": "severity:info"
+          }
+        ],
+        "title": "配置校准请求",
+        "x-audit": {
+          "action": "configuration.calibration.request",
+          "entity_id_field": "profile_id",
+          "entity_kind": "configuration.profile"
+        },
+        "x-drills": [
+          {
+            "expectations": [
+              "审计系统记录到事件，`profile_id`、`controller_id` 与哈希字段完整",
+              "运行面节点在校准后哈希值与控制面一致"
+            ],
+            "goal": "验证控制面能够针对特定节点下发校准请求并在审计事件中留下完整线索。",
+            "setup": [
+              "部署包含 1 控制面 + 1 业务节点的最小集群",
+              "通过调试接口模拟节点上报过期哈希"
+            ],
+            "steps": [
+              "触发控制面下发 `configuration.calibration.requested` 事件",
+              "确认运行面重新拉取配置并回报最新哈希"
+            ],
+            "title": "单节点手动校准演练"
+          }
+        ]
+      },
+      "ConfigurationConsistencyRestored": {
+        "contentType": "application/json",
+        "description": "在完成自动或人工校准后，控制面会发布一致性恢复事件，记录最终稳定哈希、耗时以及关联的漂移/校准事件 ID，形成完整的闭环证据链。",
+        "name": "configuration.consistency.restored",
+        "payload": {
+          "$ref": "#/components/schemas/ConfigurationConsistencyRestored"
+        },
+        "summary": "通知治理与审计系统集群已恢复一致状态，便于闭环漂移处理流程。",
+        "tags": [
+          {
+            "name": "family:consistency"
+          },
+          {
+            "name": "severity:info"
+          }
+        ],
+        "title": "配置一致性恢复",
+        "x-audit": {
+          "action": "configuration.consistency.restored",
+          "entity_id_field": "profile_id",
+          "entity_kind": "configuration.profile"
+        },
+        "x-drills": [
+          {
+            "expectations": [
+              "事件记录 `stable_hash` 与所有节点 ID，`source_event_id` 指向之前的漂移事件",
+              "审计系统能够根据恢复事件闭合哈希链"
+            ],
+            "goal": "验证从漂移检测到一致性恢复的全链路审计闭环。",
+            "setup": [
+              "先执行 \"十节点漂移聚合与审计演练\" 确保存在漂移事件",
+              "完成手动或自动校准流程，使全部节点哈希一致"
+            ],
+            "steps": [
+              "收集恢复后节点列表与耗时信息",
+              "生成 `configuration.consistency.restored` 事件并写入审计系统"
+            ],
+            "title": "漂移恢复闭环演练"
+          }
+        ]
+      },
+      "ConfigurationDriftDetected": {
+        "contentType": "application/json",
+        "description": "运行面每个节点周期性汇报配置哈希与差异键集合，控制面在窗口内汇总后生成漂移事件，事件负载需携带全部漂移节点及其差异详情，供审计与排障使用。",
+        "name": "configuration.drift.detected",
+        "payload": {
+          "$ref": "#/components/schemas/ConfigurationDriftDetected"
+        },
+        "summary": "聚合多节点上报，识别集群内的配置漂移并输出结构化差异列表。",
+        "tags": [
+          {
+            "name": "family:drift"
+          },
+          {
+            "name": "severity:warning"
+          }
+        ],
+        "title": "配置漂移检测",
+        "x-audit": {
+          "action": "configuration.drift.detected",
+          "entity_id_field": "profile_id",
+          "entity_kind": "configuration.profile"
+        },
+        "x-drills": [
+          {
+            "expectations": [
+              "事件中的 `divergent_nodes` 列表长度等于实际漂移节点数，且按差异数量排序",
+              "审计事件的 `action` 为 `configuration.drift.detected`，`entity.kind` 为 `configuration.profile`",
+              "`AuditChangeSet` 与输入的变更集合一致，确保后续回放可重现配置差异"
+            ],
+            "goal": "验证控制面能够在 10 个节点出现哈希分歧时正确聚合事件并生成审计记录。",
+            "setup": [
+              "部署 10 个业务节点并使其加载相同 Profile",
+              "通过故障注入工具让其中若干节点写入不同配置键"
+            ],
+            "steps": [
+              "收集所有节点的哈希与差异键集合并提交给聚合器",
+              "调用聚合 API 生成 `configuration.drift.detected` 事件",
+              "将事件传入审计系统，校验序列号、动作与实体标识"
+            ],
+            "title": "十节点漂移聚合与审计演练"
+          }
+        ]
+      }
+    },
+    "schemas": {
+      "ConfigurationCalibrationRequested": {
+        "additionalProperties": false,
+        "description": "当观测到集群状态可能偏离（如心跳上报的哈希与控制面不一致）时，控制面会发送校准请求，并将关键信息记录到审计事件中，确保后续回放能够追踪责任节点与触发原因。",
+        "properties": {
+          "controller_id": {
+            "description": "发起校准的控制面节点或逻辑控制器 ID。",
+            "type": "string"
+          },
+          "expected_hash": {
+            "description": "控制面计算的期望配置哈希，用于对比节点上报数据。",
+            "type": "string"
+          },
+          "observed_hash": {
+            "description": "触发本次请求的节点哈希值，帮助快速定位偏差来源。",
+            "type": "string"
+          },
+          "profile_id": {
+            "description": "需要校准的配置 Profile 标识，对应类型 ProfileId。",
+            "type": "string"
+          },
+          "reason": {
+            "description": "附加说明或触发原因，例如 \"hash_mismatch\"、\"stale_revision\"。",
+            "type": "string"
+          }
+        },
+        "required": [
+          "profile_id",
+          "controller_id",
+          "expected_hash",
+          "observed_hash"
+        ],
+        "title": "控制面向运行面发布的校准请求，用于触发目标节点重新拉取或对齐配置。",
+        "type": "object",
+        "x-detail": "当观测到集群状态可能偏离（如心跳上报的哈希与控制面不一致）时，控制面会发送校准请求，并将关键信息记录到审计事件中，确保后续回放能够追踪责任节点与触发原因。",
+        "x-fieldOrder": [
+          "profile_id",
+          "controller_id",
+          "expected_hash",
+          "observed_hash",
+          "reason"
+        ],
+        "x-summary": "控制面向运行面发布的校准请求，用于触发目标节点重新拉取或对齐配置。"
+      },
+      "ConfigurationConsistencyRestored": {
+        "additionalProperties": false,
+        "description": "在完成自动或人工校准后，控制面会发布一致性恢复事件，记录最终稳定哈希、耗时以及关联的漂移/校准事件 ID，形成完整的闭环证据链。",
+        "properties": {
+          "duration_ms": {
+            "description": "从漂移检测到一致性恢复的耗时（毫秒）。",
+            "format": "uint64",
+            "type": "integer"
+          },
+          "profile_id": {
+            "description": "恢复一致性的配置 Profile 标识。",
+            "type": "string"
+          },
+          "reconciled_nodes": {
+            "description": "成功完成校准的节点 ID 列表。",
+            "items": {
+              "description": "成功完成校准的节点 ID 列表。",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "source_event_id": {
+            "description": "触发本次恢复的上游事件 ID（如漂移或校准事件），便于串联审计链。",
+            "type": "string"
+          },
+          "stable_hash": {
+            "description": "最终达成一致的哈希值。",
+            "type": "string"
+          }
+        },
+        "required": [
+          "profile_id",
+          "stable_hash",
+          "reconciled_nodes",
+          "duration_ms"
+        ],
+        "title": "通知治理与审计系统集群已恢复一致状态，便于闭环漂移处理流程。",
+        "type": "object",
+        "x-detail": "在完成自动或人工校准后，控制面会发布一致性恢复事件，记录最终稳定哈希、耗时以及关联的漂移/校准事件 ID，形成完整的闭环证据链。",
+        "x-fieldOrder": [
+          "profile_id",
+          "stable_hash",
+          "reconciled_nodes",
+          "duration_ms",
+          "source_event_id"
+        ],
+        "x-summary": "通知治理与审计系统集群已恢复一致状态，便于闭环漂移处理流程。"
+      },
+      "ConfigurationDriftDetected": {
+        "additionalProperties": false,
+        "description": "运行面每个节点周期性汇报配置哈希与差异键集合，控制面在窗口内汇总后生成漂移事件，事件负载需携带全部漂移节点及其差异详情，供审计与排障使用。",
+        "properties": {
+          "divergent_nodes": {
+            "description": "漂移节点的完整快照集合，按照差异得分降序排列。",
+            "items": {
+              "$ref": "#/$defs/DriftNodeSnapshot",
+              "description": "漂移节点的完整快照集合，按照差异得分降序排列。"
+            },
+            "type": "array"
+          },
+          "drift_window_ms": {
+            "description": "漂移聚合的观测窗口大小（毫秒）。",
+            "format": "uint64",
+            "type": "integer"
+          },
+          "expected_hash": {
+            "description": "控制面认为的黄金配置哈希。",
+            "type": "string"
+          },
+          "majority_hash": {
+            "description": "在当前窗口内占多数的哈希值，便于评估漂移面是否集中。",
+            "type": "string"
+          },
+          "observed_node_count": {
+            "description": "在窗口内上报的节点数量，用于评估样本覆盖度。",
+            "format": "uint64",
+            "type": "integer"
+          },
+          "profile_id": {
+            "description": "出现漂移的配置 Profile 标识。",
+            "type": "string"
+          }
+        },
+        "required": [
+          "profile_id",
+          "expected_hash",
+          "majority_hash",
+          "drift_window_ms",
+          "observed_node_count",
+          "divergent_nodes"
+        ],
+        "title": "聚合多节点上报，识别集群内的配置漂移并输出结构化差异列表。",
+        "type": "object",
+        "x-detail": "运行面每个节点周期性汇报配置哈希与差异键集合，控制面在窗口内汇总后生成漂移事件，事件负载需携带全部漂移节点及其差异详情，供审计与排障使用。",
+        "x-fieldOrder": [
+          "profile_id",
+          "expected_hash",
+          "majority_hash",
+          "drift_window_ms",
+          "observed_node_count",
+          "divergent_nodes"
+        ],
+        "x-summary": "聚合多节点上报，识别集群内的配置漂移并输出结构化差异列表。"
+      },
+      "DriftNodeSnapshot": {
+        "additionalProperties": false,
+        "description": "包含节点标识、哈希值以及漂移的配置键集合，生成器会根据该结构创建 `ConfigurationDriftDetected` 事件的嵌套字段。",
+        "properties": {
+          "delta_score": {
+            "description": "差异数量得分，通常等于 `difference_keys` 的长度，用于在事件中按照严重程度排序节点。",
+            "format": "uint64",
+            "type": "integer"
+          },
+          "difference_keys": {
+            "description": "与期望配置相比存在差异的键集合，列表顺序在聚合器中会被排序以保证稳定 diff。",
+            "items": {
+              "description": "与期望配置相比存在差异的键集合，列表顺序在聚合器中会被排序以保证稳定 diff。",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "node_id": {
+            "description": "节点逻辑标识，通常对应服务拓扑中的唯一 NodeId。",
+            "type": "string"
+          },
+          "observed_hash": {
+            "description": "当前节点从本地状态计算出的配置哈希。",
+            "type": "string"
+          }
+        },
+        "required": [
+          "node_id",
+          "observed_hash",
+          "difference_keys",
+          "delta_score"
+        ],
+        "title": "描述检测到配置漂移的节点快照。",
+        "type": "object",
+        "x-detail": "包含节点标识、哈希值以及漂移的配置键集合，生成器会根据该结构创建 `ConfigurationDriftDetected` 事件的嵌套字段。",
+        "x-fieldOrder": [
+          "node_id",
+          "observed_hash",
+          "difference_keys",
+          "delta_score"
+        ],
+        "x-rationale": "用于事件负载记录差异节点，便于审计与排障人员快速定位问题主机。",
+        "x-summary": "描述检测到配置漂移的节点快照。"
+      }
+    }
+  },
+  "defaultContentType": "application/json",
+  "info": {
+    "description": "配置控制面与审计事件的统一契约：覆盖自动校准、漂移检测与一致性恢复信号。",
+    "title": "Spark Configuration Events",
+    "version": "1.0.0"
+  },
+  "x-errorMatrix": {
+    "app.backpressure_applied": {
+      "busy": "downstream",
+      "kind": "retryable",
+      "rationale": "业务端主动背压，需遵守等待窗口。",
+      "reason": "下游正在施加背压，遵循等待窗口",
+      "tuning": "可结合速率控制调整等待时间。",
+      "wait_ms": 180
+    },
+    "app.routing_failed": {
+      "kind": "non_retryable",
+      "rationale": "目标服务不存在或路由失败，需业务人工干预。",
+      "tuning": "在具备兜底副本时可标记为 Retryable。"
+    },
+    "app.unauthorized": {
+      "class": "authorization",
+      "kind": "security",
+      "rationale": "权限不足，记录安全事件并关闭通道。",
+      "tuning": "可通过自定义 Handler 触发补偿。"
+    },
+    "cluster.leader_lost": {
+      "busy": "upstream",
+      "kind": "retryable",
+      "rationale": "集群拓扑暂时不可用，建议延后重试。",
+      "reason": "集群节点暂不可用，稍后重试",
+      "tuning": "可根据集群健康状况调整等待。",
+      "wait_ms": 250
+    },
+    "cluster.network_partition": {
+      "busy": "upstream",
+      "kind": "retryable",
+      "rationale": "集群拓扑暂时不可用，建议延后重试。",
+      "reason": "集群节点暂不可用，稍后重试",
+      "tuning": "可根据集群健康状况调整等待。",
+      "wait_ms": 250
+    },
+    "cluster.node_unavailable": {
+      "busy": "upstream",
+      "kind": "retryable",
+      "rationale": "集群拓扑暂时不可用，建议延后重试。",
+      "reason": "集群节点暂不可用，稍后重试",
+      "tuning": "可根据集群健康状况调整等待。",
+      "wait_ms": 250
+    },
+    "cluster.queue_overflow": {
+      "budget": "flow",
+      "kind": "resource_exhausted",
+      "rationale": "集群队列满，触发速率背压。",
+      "tuning": "可扩容队列或自定义 BudgetKind。"
+    },
+    "cluster.service_not_found": {
+      "kind": "non_retryable",
+      "rationale": "目标服务不存在或路由失败，需业务人工干预。",
+      "tuning": "在具备兜底副本时可标记为 Retryable。"
+    },
+    "discovery.stale_read": {
+      "busy": "upstream",
+      "kind": "retryable",
+      "rationale": "服务发现数据陈旧，等待刷新后再试。",
+      "reason": "服务发现数据陈旧，等待刷新",
+      "tuning": "可结合监控加长等待时长。",
+      "wait_ms": 120
+    },
+    "protocol.budget_exceeded": {
+      "budget": "decode",
+      "kind": "resource_exhausted",
+      "rationale": "解码预算耗尽，触发背压。",
+      "tuning": "可在 CallContext 注册定制预算。"
+    },
+    "protocol.decode": {
+      "close_message": "检测到协议契约违规，已触发优雅关闭",
+      "kind": "protocol_violation",
+      "rationale": "协议契约被破坏，必须关闭连接。",
+      "tuning": "若协议允许纠正，可改写为 Retryable。"
+    },
+    "protocol.negotiation": {
+      "close_message": "检测到协议契约违规，已触发优雅关闭",
+      "kind": "protocol_violation",
+      "rationale": "协议契约被破坏，必须关闭连接。",
+      "tuning": "若协议允许纠正，可改写为 Retryable。"
+    },
+    "protocol.type_mismatch": {
+      "close_message": "检测到协议契约违规，已触发优雅关闭",
+      "kind": "protocol_violation",
+      "rationale": "协议契约被破坏，必须关闭连接。",
+      "tuning": "若协议允许纠正，可改写为 Retryable。"
+    },
+    "router.version_conflict": {
+      "close_message": "检测到协议契约违规，已触发优雅关闭",
+      "kind": "protocol_violation",
+      "rationale": "协议契约被破坏，必须关闭连接。",
+      "tuning": "若协议允许纠正，可改写为 Retryable。"
+    },
+    "runtime.shutdown": {
+      "kind": "cancelled",
+      "rationale": "运行时已进入关闭流程，终止后续逻辑。",
+      "tuning": "若需等待收尾，可改写为 Retryable。"
+    },
+    "transport.io": {
+      "busy": "downstream",
+      "kind": "retryable",
+      "rationale": "典型 TCP/QUIC I/O 故障，建议短暂退避。",
+      "reason": "传输层 I/O 故障，等待链路恢复后重试",
+      "tuning": "可根据重试策略调整等待窗口。",
+      "wait_ms": 150
+    },
+    "transport.timeout": {
+      "kind": "timeout",
+      "rationale": "传输层请求超时，触发调用取消。",
+      "tuning": "若需继续等待，可显式改写分类。"
+    }
+  }
+}'''
+
+@lru_cache(maxsize=1)
+def load_json_schema() -> Dict[str, Any]:
+    """返回 JSON Schema 的深拷贝副本，保障调用方不会修改内部常量。"""
+    return json.loads(_SCHEMA_TEXT)
+
+@lru_cache(maxsize=1)
+def load_asyncapi() -> Dict[str, Any]:
+    """返回 AsyncAPI 文档的深拷贝副本。"""
+    return json.loads(_ASYNCAPI_TEXT)

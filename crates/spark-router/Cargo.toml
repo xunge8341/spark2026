@@ -1,0 +1,28 @@
+[package]
+name = "spark-router"
+version = "0.1.0"
+edition.workspace = true
+rust-version = "1.89"
+authors = ["Gemini 架构组 <architecture@gemini.example>"]
+license = "Apache-2.0"
+description = "spark-router: 线程安全且可热更新的 DynRouter 默认实现"
+
+[lib]
+name = "spark_router"
+path = "src/lib.rs"
+bench = false
+
+[features]
+default = ["std"]
+std = ["dep:arc-swap"]
+alloc = ["std"]
+
+[dependencies]
+arc-swap = { workspace = true, optional = true }
+spark-core = { workspace = true, default-features = false, features = ["alloc"] }
+
+[dev-dependencies]
+futures = { workspace = true, features = ["executor"] }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)', 'cfg(spark_loom)'] }

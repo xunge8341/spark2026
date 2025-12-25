@@ -1,0 +1,54 @@
+[package]
+name = "spark-switch"
+version = "0.1.0"
+edition.workspace = true
+rust-version = "1.89"
+authors = ["Gemini 架构组 <architecture@gemini.example>"]
+license = "Apache-2.0"
+description = "spark-switch: 面向多协议信令编排的核心枢纽"
+publish = false
+
+[lib]
+bench = false
+
+[features]
+default = ["std"]
+alloc = [
+    "spark-core/alloc",
+    "spark-codec-sip/alloc",
+    "spark-codec-sdp/alloc",
+]
+# `std` 保持运行时无关：不再透传或隐式启用 Tokio，避免默认特性强制绑定具体异步运行时。
+std = [
+    "alloc",
+    "spark-core/std",
+    "spark-codec-sip/std",
+    "spark-codec-sdp/std",
+    "dep:dashmap",
+    "dep:thiserror",
+]
+router-factory = [
+    "std",
+    "dep:spark-router",
+]
+
+[dependencies]
+spark-core = { workspace = true, default-features = false }
+spark-router = { workspace = true, default-features = false, features = ["std"], optional = true }
+spark-codec-sip = { workspace = true, default-features = false }
+spark-codec-sdp = { workspace = true, default-features = false }
+dashmap = { workspace = true, optional = true }
+thiserror = { workspace = true, optional = true }
+
+[dev-dependencies]
+# 教案级注释：
+# - **意图 (Why)**：将 Tokio 限定为测试期依赖，防止 `spark-switch` 默认特性在生产环境中隐式拉起
+#   Tokio 运行时，从而保持对上游调用方的运行时中立性；
+# - **契约 (What)**：仅供 `#[cfg(test)]` 或 `tests/` 目录下的异步用例使用，不影响库本身的编译
+#   依赖图；
+# - **设计取舍 (Trade-offs)**：选择最小的 `rt` 特性满足 `tokio::test` 等宏的调度需求，避免在
+#   dev profile 下启用 Tokio 的多线程/IO 功能，以减少测试引入的外部开销。
+tokio = { workspace = true, features = ["rt"] }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)', 'cfg(spark_loom)'] }

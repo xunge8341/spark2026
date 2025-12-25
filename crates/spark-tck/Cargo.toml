@@ -1,0 +1,45 @@
+[package]
+name = "spark-tck"
+version = "0.1.0"
+edition.workspace = true
+publish = false
+license = "Apache-2.0"
+
+[features]
+default = []
+transport-tests = []
+rtp-tests = []
+
+[lib]
+# `cargo bench -- --quick` 会向所有基于 `libtest` 的单元测试传递额外参数，
+# `spark-tck` 不提供基准测试入口，因此禁用基准运行以避免参数解析失败。
+bench = false
+
+[dependencies]
+spark-core = { workspace = true, features = ["std"] }
+spark-codec-sip = { workspace = true }
+bytes.workspace = true
+spark-codec-sdp = { workspace = true }
+spark-transport-udp = { workspace = true, features = ["batch-udp-unix"] }
+anyhow = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time", "net", "io-util", "sync"] }
+
+[dev-dependencies]
+spark-router = { workspace = true }
+spark-transport-tcp = { workspace = true }
+spark-transport-tls = { workspace = true }
+spark-transport-quic = { workspace = true }
+quinn = { workspace = true }
+rustls-pki-types = { workspace = true }
+tokio-rustls = { workspace = true }
+rcgen = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+spark-codec-rtp = { workspace = true }
+rustls = { workspace = true, default-features = false, features = ["std"] }
+hex = { workspace = true }
+spark-codec-rtcp = { workspace = true }
+
+[[bench]]
+name = "tcp_throughput"
+harness = false

@@ -1,0 +1,131 @@
+{
+  "title": "Spark 编解码与载荷分析",
+  "uid": "spark-codec-payload",
+  "schemaVersion": 36,
+  "version": 1,
+  "timezone": "browser",
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "codec_name",
+        "label": "编解码器",
+        "type": "query",
+        "datasource": "Prometheus",
+        "refresh": 2,
+        "query": "label_values(spark_codec_encode_duration_sum, codec_name)",
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": ""
+        }
+      },
+      {
+        "name": "content_type",
+        "label": "内容类型",
+        "type": "query",
+        "datasource": "Prometheus",
+        "refresh": 2,
+        "query": "label_values(spark_codec_encode_duration_sum{codec_name=~\"$codec_name\"}, content_type)",
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": ""
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "编解码 P95 延迟",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, codec_mode) (rate(spark_codec_encode_duration_bucket{codec_name=~\"$codec_name\", content_type=~\"$content_type\"}[5m])))",
+          "legendFormat": "编码 {{codec_mode}}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, codec_mode) (rate(spark_codec_decode_duration_bucket{codec_name=~\"$codec_name\", content_type=~\"$content_type\"}[5m])))",
+          "legendFormat": "解码 {{codec_mode}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "编解码错误率",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(spark_codec_encode_errors{codec_name=~\"$codec_name\", content_type=~\"$content_type\"}[5m])) / sum(rate(spark_codec_encode_duration_count{codec_name=~\"$codec_name\", content_type=~\"$content_type\"}[5m]))",
+          "legendFormat": "编码错误率"
+        },
+        {
+          "expr": "sum(rate(spark_codec_decode_errors{codec_name=~\"$codec_name\", content_type=~\"$content_type\"}[5m])) / sum(rate(spark_codec_decode_duration_count{codec_name=~\"$codec_name\", content_type=~\"$content_type\"}[5m]))",
+          "legendFormat": "解码错误率"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "载荷大小 (平均)",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(spark_codec_encode_bytes{codec_name=~\"$codec_name\", content_type=~\"$content_type\"}[1m])) / sum(rate(spark_codec_encode_duration_count{codec_name=~\"$codec_name\", content_type=~\"$content_type\"}[1m]))",
+          "legendFormat": "编码平均字节"
+        },
+        {
+          "expr": "sum(rate(spark_codec_decode_bytes{codec_name=~\"$codec_name\", content_type=~\"$content_type\"}[1m])) / sum(rate(spark_codec_decode_duration_count{codec_name=~\"$codec_name\", content_type=~\"$content_type\"}[1m]))",
+          "legendFormat": "解码平均字节"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "异常错误类型分布",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum by (error_kind) (rate(spark_codec_decode_errors{codec_name=~\"$codec_name\", content_type=~\"$content_type\"}[5m]))",
+          "legendFormat": "解码 {{error_kind}}"
+        },
+        {
+          "expr": "sum by (error_kind) (rate(spark_codec_encode_errors{codec_name=~\"$codec_name\", content_type=~\"$content_type\"}[5m]))",
+          "legendFormat": "编码 {{error_kind}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "errors/s",
+          "min": 0
+        },
+        "overrides": []
+      }
+    }
+  ]
+}

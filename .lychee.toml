@@ -1,0 +1,16 @@
+# Lychee 链接检查配置：聚焦本仓库文档并规避常见误报。
+
+# 默认在 CI 中静默输出进度，避免日志噪声。
+no_progress = true
+
+# 避免对 mailto、RFC reference 等动态协议报错。
+exclude = ["mailto:.*", "git@.*", "ssh://.*"]
+
+# 为部分对 UA 敏感的站点设置通用标识。
+[headers]
+"User-Agent" = "spark2026-doc-link-check/1.0 (+https://example.invalid/ci)"
+
+# 在网络波动时自动重试，保障 CI 稳定。
+[retry]
+attempts = 2
+backoff = "exponential"

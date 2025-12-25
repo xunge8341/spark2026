@@ -1,0 +1,823 @@
+# 可观测性键名契约（Observability Keys Contract）的单一事实来源（Single Source of Truth）。
+#
+# 教案式说明（Why）：
+# - 避免指标、日志、追踪等多处重复维护键名，确保 SDK、仪表盘、治理文档共享同一来源；
+# - 为 `crates/spark-core/src/governance/observability/keys.rs` 与 `docs/observability-contract.md` 的自动生成提供输入；
+# - 通过 `tools/ci/check_observability_keys.sh` 建立守门机制，防止合约更新时遗漏代码或文档同步。
+#
+# 契约定义（What）：
+# - `groups`：按作用域聚合键名，`path` 为模块层级，`title` 与 `description` 用于生成模块文档；
+# - `items`：具体的键或枚举值，字段含义：
+#   * `ident`：Rust 常量名称；
+#   * `value`：暴露给下游的字符串字面量；
+#   * `kind`：键的类型（`attribute_key`/`label_value`/`log_field`/`trace_field`）；
+#   * `usage`：可观测性维度枚举（`metrics`/`logs`/`tracing`/`events`），用于生成阅读指引；
+#   * `doc`：面向 SRE/开发者的说明文本。
+#
+# 运行约束（How）：
+# - 构建脚本与文档生成工具会在 CI 中读取本文件，生成代码与 Markdown；
+# - 新增或修改键名时，必须同步提交生成的文件，以通过 `tools/ci/check_observability_keys.sh` 的校验。
+#
+# 风险提示（Trade-offs）：
+# - 若未来扩展新的键类型或维度，需要同时更新构建脚本与文档生成器；
+# - 同一键值若跨域复用，应在不同分组中分别记录，便于在文档中说明上下文。
+
+[[groups]]
+path = ["metrics", "service"]
+title = "Service 域指标/日志键"
+description = "服务调用面指标与结构化日志共享的标签与标签值，覆盖 ReadyState、Outcome 等核心维度。"
+
+[[groups.items]]
+ident = "ATTR_SERVICE_NAME"
+value = "service.name"
+kind = "attribute_key"
+usage = ["metrics", "logs"]
+doc = "业务服务名，建议与服务注册中心或配置中的逻辑名称保持一致。"
+
+[[groups.items]]
+ident = "ATTR_ROUTE_ID"
+value = "route.id"
+kind = "attribute_key"
+usage = ["metrics", "logs"]
+doc = "路由或逻辑分组标识，例如 API Path、租户 ID 映射。"
+
+[[groups.items]]
+ident = "ATTR_OPERATION"
+value = "operation"
+kind = "attribute_key"
+usage = ["metrics", "logs"]
+doc = "操作/方法名，统一为低基数字符串，如 grpc 方法或 RPC 名称。"
+
+[[groups.items]]
+ident = "ATTR_PROTOCOL"
+value = "protocol"
+kind = "attribute_key"
+usage = ["metrics", "logs", "tracing"]
+doc = "入站协议标识，常见值如 grpc/http/quic。"
+
+[[groups.items]]
+ident = "ATTR_STATUS_CODE"
+value = "status.code"
+kind = "attribute_key"
+usage = ["metrics", "logs"]
+doc = "HTTP/gRPC 等响应码或业务状态码。"
+
+[[groups.items]]
+ident = "ATTR_OUTCOME"
+value = "outcome"
+kind = "attribute_key"
+usage = ["metrics", "logs"]
+doc = "调用总体结果，限制在 success/error 等少量枚举内。"
+
+[[groups.items]]
+ident = "ATTR_ERROR_KIND"
+value = "error.kind"
+kind = "attribute_key"
+usage = ["metrics", "logs"]
+doc = "稳定错误分类（如 timeout/internal/security），需与错误分类矩阵保持一致。"
+
+[[groups.items]]
+ident = "ATTR_PEER_IDENTITY"
+value = "peer.identity"
+kind = "attribute_key"
+usage = ["metrics", "logs"]
+doc = "对端身份标签，例如 upstream/downstream 或租户别名，需保持低基数。"
+
+[[groups.items]]
+ident = "ATTR_READY_STATE"
+value = "ready.state"
+kind = "attribute_key"
+usage = ["metrics", "logs"]
+doc = "ReadyState 主枚举值，用于关联治理 ReadyState 仪表盘。"
+
+[[groups.items]]
+ident = "ATTR_READY_DETAIL"
+value = "ready.detail"
+kind = "attribute_key"
+usage = ["metrics", "logs"]
+doc = "ReadyState 细分详情，承载更具体的背压原因。"
+
+[[groups.items]]
+ident = "OUTCOME_SUCCESS"
+value = "success"
+kind = "label_value"
+usage = ["metrics", "logs"]
+doc = "Outcome 成功枚举值。"
+
+[[groups.items]]
+ident = "OUTCOME_ERROR"
+value = "error"
+kind = "label_value"
+usage = ["metrics", "logs"]
+doc = "Outcome 失败枚举值。"
+
+[[groups.items]]
+ident = "READY_STATE_READY"
+value = "ready"
+kind = "label_value"
+usage = ["metrics", "logs"]
+doc = "ReadyState：完全就绪。"
+
+[[groups.items]]
+ident = "READY_STATE_BUSY"
+value = "busy"
+kind = "label_value"
+usage = ["metrics", "logs"]
+doc = "ReadyState：繁忙状态。"
+
+[[groups.items]]
+ident = "READY_STATE_BUDGET_EXHAUSTED"
+value = "budget_exhausted"
+kind = "label_value"
+usage = ["metrics", "logs"]
+doc = "ReadyState：预算耗尽。"
+
+[[groups.items]]
+ident = "READY_STATE_RETRY_AFTER"
+value = "retry_after"
+kind = "label_value"
+usage = ["metrics", "logs"]
+doc = "ReadyState：处于 RetryAfter 冷却期。"
+
+[[groups.items]]
+ident = "READY_DETAIL_PLACEHOLDER"
+value = "_"
+kind = "label_value"
+usage = ["metrics", "logs"]
+doc = "Ready detail 占位符，避免缺失标签导致基数膨胀。"
+
+[[groups.items]]
+ident = "READY_DETAIL_UPSTREAM"
+value = "upstream"
+kind = "label_value"
+usage = ["metrics", "logs"]
+doc = "Ready detail：上游繁忙。"
+
+[[groups.items]]
+ident = "READY_DETAIL_DOWNSTREAM"
+value = "downstream"
+kind = "label_value"
+usage = ["metrics", "logs"]
+doc = "Ready detail：下游繁忙。"
+
+[[groups.items]]
+ident = "READY_DETAIL_QUEUE_FULL"
+value = "queue_full"
+kind = "label_value"
+usage = ["metrics", "logs"]
+doc = "Ready detail：内部队列溢出。"
+
+[[groups.items]]
+ident = "READY_DETAIL_CUSTOM"
+value = "custom"
+kind = "label_value"
+usage = ["metrics", "logs"]
+doc = "Ready detail：自定义繁忙原因。"
+
+[[groups.items]]
+ident = "READY_DETAIL_RETRY_AFTER"
+value = "after"
+kind = "label_value"
+usage = ["metrics", "logs"]
+doc = "Ready detail：RetryAfter 相对等待。"
+
+[[groups]]
+path = ["metrics", "codec"]
+title = "Codec 域指标键"
+description = "编解码链路的标签与枚举，辅助区分 encode/decode、错误类型与内容类型。"
+
+[[groups.items]]
+ident = "ATTR_CODEC_NAME"
+value = "codec.name"
+kind = "attribute_key"
+usage = ["metrics", "logs"]
+doc = "编解码器名称，通常与协议/格式实现绑定。"
+
+[[groups.items]]
+ident = "ATTR_MODE"
+value = "codec.mode"
+kind = "attribute_key"
+usage = ["metrics"]
+doc = "编码/解码模式标签。"
+
+[[groups.items]]
+ident = "ATTR_CONTENT_TYPE"
+value = "content.type"
+kind = "attribute_key"
+usage = ["metrics", "logs"]
+doc = "内容类型或媒体类型，例如 application/grpc。"
+
+[[groups.items]]
+ident = "ATTR_ERROR_KIND"
+value = "error.kind"
+kind = "attribute_key"
+usage = ["metrics", "logs"]
+doc = "编解码阶段的错误分类。"
+
+[[groups.items]]
+ident = "MODE_ENCODE"
+value = "encode"
+kind = "label_value"
+usage = ["metrics"]
+doc = "Codec 模式：编码。"
+
+[[groups.items]]
+ident = "MODE_DECODE"
+value = "decode"
+kind = "label_value"
+usage = ["metrics"]
+doc = "Codec 模式：解码。"
+
+[[groups]]
+path = ["attributes", "error"]
+title = "错误观测属性键"
+description = "跨指标/日志/追踪复用的错误标签集合，匹配 CoreError 契约。"
+
+[[groups.items]]
+ident = "ATTR_CODE"
+value = "error.code"
+kind = "attribute_key"
+usage = ["metrics", "logs", "tracing"]
+doc = "稳定错误码，遵循 <域>.<语义> 约定。"
+
+[[groups.items]]
+ident = "ATTR_CATEGORY"
+value = "error.category"
+kind = "attribute_key"
+usage = ["metrics", "logs", "tracing"]
+doc = "错误分类名称，与 ErrorCategory 变体一一对应。"
+
+[[groups.items]]
+ident = "ATTR_KIND"
+value = "error.kind"
+kind = "attribute_key"
+usage = ["metrics", "logs", "tracing"]
+doc = "稳定错误类别标签，用于聚合错误趋势。"
+
+[[groups.items]]
+ident = "ATTR_RETRYABLE"
+value = "error.retryable"
+kind = "attribute_key"
+usage = ["metrics", "logs", "tracing"]
+doc = "布尔值，指示错误是否建议重试。"
+
+[[groups.items]]
+ident = "ATTR_RETRY_WAIT_MS"
+value = "error.retry.wait_ms"
+kind = "attribute_key"
+usage = ["metrics", "logs"]
+doc = "Retryable 错误建议等待的毫秒数。"
+
+[[groups.items]]
+ident = "ATTR_RETRY_REASON"
+value = "error.retry.reason"
+kind = "attribute_key"
+usage = ["logs"]
+doc = "Retryable 错误附带的退避原因描述。"
+
+[[groups.items]]
+ident = "ATTR_SECURITY_CLASS"
+value = "error.security.class"
+kind = "attribute_key"
+usage = ["metrics", "logs", "tracing"]
+doc = "安全相关错误所属的安全分类（authentication/authorization 等）。"
+
+[[groups.items]]
+ident = "ATTR_BUDGET_KIND"
+value = "error.budget.kind"
+kind = "attribute_key"
+usage = ["metrics", "logs"]
+doc = "资源耗尽类错误关联的预算类型。"
+
+[[groups.items]]
+ident = "ATTR_BUSY_DIRECTION"
+value = "error.busy.direction"
+kind = "attribute_key"
+usage = ["metrics", "logs"]
+doc = "重试类错误导致的繁忙方向（上游/下游）。"
+
+[[groups]]
+path = ["labels", "error_kind"]
+title = "错误类别标签值"
+description = "ErrorCategory 到 error.kind 的标准枚举值。"
+
+[[groups.items]]
+ident = "RETRYABLE"
+value = "retryable"
+kind = "label_value"
+usage = ["metrics", "logs", "tracing"]
+doc = "可重试错误。"
+
+[[groups.items]]
+ident = "NON_RETRYABLE"
+value = "non_retryable"
+kind = "label_value"
+usage = ["metrics", "logs", "tracing"]
+doc = "不可重试错误。"
+
+[[groups.items]]
+ident = "RESOURCE_EXHAUSTED"
+value = "resource_exhausted"
+kind = "label_value"
+usage = ["metrics", "logs", "tracing"]
+doc = "资源或预算耗尽。"
+
+[[groups.items]]
+ident = "SECURITY"
+value = "security"
+kind = "label_value"
+usage = ["metrics", "logs", "tracing"]
+doc = "安全违规或合规相关错误。"
+
+[[groups.items]]
+ident = "PROTOCOL_VIOLATION"
+value = "protocol_violation"
+kind = "label_value"
+usage = ["metrics", "logs", "tracing"]
+doc = "协议契约被破坏。"
+
+[[groups.items]]
+ident = "TIMEOUT"
+value = "timeout"
+kind = "label_value"
+usage = ["metrics", "logs", "tracing"]
+doc = "调用超时。"
+
+[[groups.items]]
+ident = "CANCELLED"
+value = "cancelled"
+kind = "label_value"
+usage = ["metrics", "logs", "tracing"]
+doc = "调用被主动取消。"
+
+[[groups.items]]
+ident = "UNKNOWN"
+value = "unknown"
+kind = "label_value"
+usage = ["metrics", "logs", "tracing"]
+doc = "未归类错误的兜底标签。"
+
+[[groups]]
+path = ["metrics", "transport"]
+title = "Transport 域指标键"
+description = "传输层连接与字节统计使用的标签与枚举。"
+
+[[groups.items]]
+ident = "ATTR_PROTOCOL"
+value = "transport.protocol"
+kind = "attribute_key"
+usage = ["metrics", "logs"]
+doc = "传输协议：tcp/quic/uds 等。"
+
+[[groups.items]]
+ident = "ATTR_LISTENER_ID"
+value = "listener.id"
+kind = "attribute_key"
+usage = ["metrics", "logs"]
+doc = "监听器或连接逻辑标识，保持低基数以利聚合。"
+
+[[groups.items]]
+ident = "ATTR_PEER_ROLE"
+value = "peer.role"
+kind = "attribute_key"
+usage = ["metrics", "logs"]
+doc = "对端角色，通常为 client/server。"
+
+[[groups.items]]
+ident = "ATTR_RESULT"
+value = "result"
+kind = "attribute_key"
+usage = ["metrics", "logs"]
+doc = "连接尝试结果。"
+
+[[groups.items]]
+ident = "ATTR_ERROR_KIND"
+value = "error.kind"
+kind = "attribute_key"
+usage = ["metrics", "logs"]
+doc = "传输层错误分类。"
+
+[[groups.items]]
+ident = "ATTR_SOCKET_FAMILY"
+value = "socket.family"
+kind = "attribute_key"
+usage = ["metrics", "logs"]
+doc = "Socket 家族：ipv4/ipv6/unix。"
+
+[[groups.items]]
+ident = "RESULT_SUCCESS"
+value = "success"
+kind = "label_value"
+usage = ["metrics", "logs"]
+doc = "连接结果：成功。"
+
+[[groups.items]]
+ident = "RESULT_FAILURE"
+value = "failure"
+kind = "label_value"
+usage = ["metrics", "logs"]
+doc = "连接结果：失败。"
+
+[[groups.items]]
+ident = "ROLE_CLIENT"
+value = "client"
+kind = "label_value"
+usage = ["metrics", "logs"]
+doc = "对端角色：客户端。"
+
+[[groups.items]]
+ident = "ROLE_SERVER"
+value = "server"
+kind = "label_value"
+usage = ["metrics", "logs"]
+doc = "对端角色：服务端。"
+
+[[groups]]
+path = ["metrics", "pipeline"]
+title = "Pipeline 域指标/日志键"
+description = "Pipeline 纪元、控制器与变更事件的统一标签。"
+
+[[groups.items]]
+ident = "ATTR_CONTROLLER"
+value = "pipeline.controller"
+kind = "attribute_key"
+usage = ["metrics", "logs"]
+doc = "Pipeline 控制器实现标识。"
+
+[[groups.items]]
+ident = "ATTR_PIPELINE_ID"
+value = "pipeline.id"
+kind = "attribute_key"
+usage = ["metrics", "logs"]
+doc = "Pipeline 唯一标识，通常映射到 Channel ID。"
+
+[[groups.items]]
+ident = "ATTR_MUTATION_OP"
+value = "pipeline.mutation.op"
+kind = "attribute_key"
+usage = ["metrics", "logs"]
+doc = "变更操作类型。"
+
+[[groups.items]]
+ident = "ATTR_EPOCH"
+value = "pipeline.epoch"
+kind = "attribute_key"
+usage = ["metrics", "logs"]
+doc = "Pipeline 逻辑纪元。"
+
+[[groups.items]]
+ident = "OP_ADD"
+value = "add"
+kind = "label_value"
+usage = ["metrics", "logs"]
+doc = "变更操作：新增 Handler。"
+
+[[groups.items]]
+ident = "OP_REMOVE"
+value = "remove"
+kind = "label_value"
+usage = ["metrics", "logs"]
+doc = "变更操作：移除 Handler。"
+
+[[groups.items]]
+ident = "OP_REPLACE"
+value = "replace"
+kind = "label_value"
+usage = ["metrics", "logs"]
+doc = "变更操作：替换 Handler。"
+
+[[groups.items]]
+ident = "CONTROLLER_HOT_SWAP"
+value = "hot_swap"
+kind = "label_value"
+usage = ["metrics", "logs"]
+doc = "控制器枚举：HotSwap 控制器实现。"
+
+[[groups]]
+path = ["resource", "core"]
+title = "核心资源属性键"
+description = "服务、部署与 SDK 元数据的标准资源标签。"
+
+[[groups.items]]
+ident = "ATTR_SERVICE_NAME"
+value = "service.name"
+kind = "attribute_key"
+usage = ["metrics", "logs", "tracing"]
+doc = "服务逻辑名称，建议与注册中心保持一致。"
+
+[[groups.items]]
+ident = "ATTR_SERVICE_NAMESPACE"
+value = "service.namespace"
+kind = "attribute_key"
+usage = ["metrics", "logs", "tracing"]
+doc = "服务命名空间或业务域，便于分环境聚合。"
+
+[[groups.items]]
+ident = "ATTR_SERVICE_INSTANCE_ID"
+value = "service.instance.id"
+kind = "attribute_key"
+usage = ["metrics", "logs", "tracing"]
+doc = "实例唯一标识，如 Pod 名称或主机 ID。"
+
+[[groups.items]]
+ident = "ATTR_DEPLOYMENT_ENVIRONMENT"
+value = "deployment.environment"
+kind = "attribute_key"
+usage = ["metrics", "logs", "tracing"]
+doc = "部署环境标签，例如 production/staging。"
+
+[[groups.items]]
+ident = "ATTR_TELEMETRY_SDK_NAME"
+value = "telemetry.sdk.name"
+kind = "attribute_key"
+usage = ["metrics", "logs", "tracing"]
+doc = "可观测性 SDK 名称，默认为 spark-otel。"
+
+[[groups.items]]
+ident = "ATTR_TELEMETRY_SDK_VERSION"
+value = "telemetry.sdk.version"
+kind = "attribute_key"
+usage = ["metrics", "logs", "tracing"]
+doc = "可观测性 SDK 版本号，与 Cargo 包版本对齐。"
+
+[[groups.items]]
+ident = "ATTR_TELEMETRY_AUTO_VERSION"
+value = "telemetry.auto.version"
+kind = "attribute_key"
+usage = ["metrics", "logs", "tracing"]
+doc = "自动化安装层版本（若使用自动注入）。"
+
+[[groups]]
+path = ["metrics", "limits"]
+title = "限流/限额指标键"
+description = "资源限额治理相关的标签集合。"
+
+[[groups.items]]
+ident = "ATTR_RESOURCE"
+value = "limit.resource"
+kind = "attribute_key"
+usage = ["metrics", "logs"]
+doc = "资源类型标签，例如并发/队列。"
+
+[[groups.items]]
+ident = "ATTR_ACTION"
+value = "limit.action"
+kind = "attribute_key"
+usage = ["metrics", "logs"]
+doc = "策略动作标签，如 queue/drop/degrade。"
+
+[[groups]]
+path = ["metrics", "hot_reload"]
+title = "热更新指标键"
+description = "运行时热更新流程的标签集合。"
+
+[[groups.items]]
+ident = "ATTR_COMPONENT"
+value = "hot_reload.component"
+kind = "attribute_key"
+usage = ["metrics", "logs"]
+doc = "热更新组件名称，如 limits/timeouts。"
+
+[[groups]]
+path = ["logging", "shutdown"]
+title = "关机流程日志字段"
+description = "Host Shutdown 生命周期的结构化日志字段。"
+
+[[groups.items]]
+ident = "FIELD_REASON_CODE"
+value = "shutdown.reason.code"
+kind = "log_field"
+usage = ["logs", "events"]
+doc = "关机原因代码，通常来源于治理策略。"
+
+[[groups.items]]
+ident = "FIELD_REASON_MESSAGE"
+value = "shutdown.reason.message"
+kind = "log_field"
+usage = ["logs", "events"]
+doc = "关机原因文本描述。"
+
+[[groups.items]]
+ident = "FIELD_TARGET_COUNT"
+value = "shutdown.target.count"
+kind = "log_field"
+usage = ["logs", "events"]
+doc = "计划关机的目标数量。"
+
+[[groups.items]]
+ident = "FIELD_DEADLINE_MS"
+value = "shutdown.deadline.ms"
+kind = "log_field"
+usage = ["logs", "events"]
+doc = "关机截止时间与当前时刻的剩余毫秒数。"
+
+[[groups.items]]
+ident = "FIELD_TARGET_LABEL"
+value = "shutdown.target.label"
+kind = "log_field"
+usage = ["logs", "events"]
+doc = "被关机目标的逻辑标识。"
+
+[[groups.items]]
+ident = "FIELD_ERROR_CODE"
+value = "shutdown.error.code"
+kind = "log_field"
+usage = ["logs", "events"]
+doc = "关机过程出现的错误码。"
+
+[[groups.items]]
+ident = "FIELD_ELAPSED_MS"
+value = "shutdown.elapsed.ms"
+kind = "log_field"
+usage = ["logs", "events"]
+doc = "关机耗时，毫秒。"
+
+[[groups]]
+path = ["logging", "audit"]
+title = "审计事件日志字段"
+description = "AuditEvent 序列化到日志或运维事件时复用的字段，保持合规链条可追溯。"
+
+[[groups.items]]
+ident = "FIELD_EVENT_ID"
+value = "audit.event.id"
+kind = "log_field"
+usage = ["logs", "events"]
+doc = "审计事件的全局唯一标识。"
+
+[[groups.items]]
+ident = "FIELD_SEQUENCE"
+value = "audit.sequence"
+kind = "log_field"
+usage = ["logs", "events"]
+doc = "事件在同一实体上的顺序号，便于检测缺失。"
+
+[[groups.items]]
+ident = "FIELD_ENTITY_KIND"
+value = "audit.entity.kind"
+kind = "log_field"
+usage = ["logs", "events"]
+doc = "被操作实体的类型，例如 configuration.profile。"
+
+[[groups.items]]
+ident = "FIELD_ENTITY_ID"
+value = "audit.entity.id"
+kind = "log_field"
+usage = ["logs", "events"]
+doc = "被操作实体的唯一标识。"
+
+[[groups.items]]
+ident = "FIELD_ACTION"
+value = "audit.action"
+kind = "log_field"
+usage = ["logs", "events"]
+doc = "执行的动作名称，例如 apply_changeset。"
+
+[[groups.items]]
+ident = "FIELD_ACTOR_ID"
+value = "audit.actor.id"
+kind = "log_field"
+usage = ["logs", "events"]
+doc = "触发事件的操作者标识。"
+
+[[groups.items]]
+ident = "FIELD_ACTOR_TENANT"
+value = "audit.actor.tenant"
+kind = "log_field"
+usage = ["logs", "events"]
+doc = "操作者所属租户或逻辑空间，可为空。"
+
+[[groups.items]]
+ident = "FIELD_STATE_PREV_HASH"
+value = "audit.state.prev_hash"
+kind = "log_field"
+usage = ["logs", "events"]
+doc = "变更前状态的 SHA-256 哈希。"
+
+[[groups.items]]
+ident = "FIELD_STATE_CURR_HASH"
+value = "audit.state.curr_hash"
+kind = "log_field"
+usage = ["logs", "events"]
+doc = "变更后状态的 SHA-256 哈希。"
+
+[[groups.items]]
+ident = "FIELD_OCCURRED_AT"
+value = "audit.occurred_at"
+kind = "log_field"
+usage = ["logs", "events"]
+doc = "事件发生时间，Unix 毫秒。"
+
+[[groups.items]]
+ident = "FIELD_TSA_CHAIN"
+value = "audit.tsa.chain"
+kind = "log_field"
+usage = ["logs", "events"]
+doc = "可信时间戳证书链标识，用于合规审计。"
+
+[[groups.items]]
+ident = "FIELD_CHANGE_COUNT"
+value = "audit.change.count"
+kind = "log_field"
+usage = ["logs", "events"]
+doc = "变更条目的数量，帮助快速估算影响范围。"
+
+[[groups]]
+path = ["logging", "deprecation"]
+title = "弃用公告日志字段"
+description = "统一的弃用告警日志字段集合，便于告警平台解析。"
+
+[[groups.items]]
+ident = "FIELD_SYMBOL"
+value = "deprecation.symbol"
+kind = "log_field"
+usage = ["logs", "events"]
+doc = "被弃用的符号或能力标识。"
+
+[[groups.items]]
+ident = "FIELD_SINCE"
+value = "deprecation.since"
+kind = "log_field"
+usage = ["logs", "events"]
+doc = "自哪个版本开始弃用。"
+
+[[groups.items]]
+ident = "FIELD_REMOVAL"
+value = "deprecation.removal"
+kind = "log_field"
+usage = ["logs", "events"]
+doc = "计划移除的版本或时间。"
+
+[[groups.items]]
+ident = "FIELD_TRACKING"
+value = "deprecation.tracking"
+kind = "log_field"
+usage = ["logs", "events"]
+doc = "追踪链接或工单地址。"
+
+[[groups.items]]
+ident = "FIELD_MIGRATION"
+value = "deprecation.migration"
+kind = "log_field"
+usage = ["logs", "events"]
+doc = "迁移或替代方案提示。"
+
+[[groups]]
+path = ["tracing", "pipeline"]
+title = "Pipeline Trace 属性"
+description = "OpenTelemetry Handler Span 使用的标签及枚举。"
+
+[[groups.items]]
+ident = "ATTR_DIRECTION"
+value = "spark.pipeline.direction"
+kind = "trace_field"
+usage = ["tracing"]
+doc = "Pipeline Handler 方向标签。"
+
+[[groups.items]]
+ident = "ATTR_LABEL"
+value = "spark.pipeline.label"
+kind = "trace_field"
+usage = ["tracing"]
+doc = "Handler 注册时的 Label。"
+
+[[groups.items]]
+ident = "ATTR_COMPONENT"
+value = "spark.pipeline.component"
+kind = "trace_field"
+usage = ["tracing"]
+doc = "Handler 所属组件（Descriptor name）。"
+
+[[groups.items]]
+ident = "ATTR_CATEGORY"
+value = "spark.pipeline.category"
+kind = "trace_field"
+usage = ["tracing"]
+doc = "Handler 分类。"
+
+[[groups.items]]
+ident = "ATTR_SUMMARY"
+value = "spark.pipeline.summary"
+kind = "trace_field"
+usage = ["tracing"]
+doc = "Handler 文本摘要。"
+
+[[groups.items]]
+ident = "DIRECTION_INBOUND"
+value = "inbound"
+kind = "label_value"
+usage = ["tracing"]
+doc = "Handler 方向：入站。"
+
+[[groups.items]]
+ident = "DIRECTION_OUTBOUND"
+value = "outbound"
+kind = "label_value"
+usage = ["tracing"]
+doc = "Handler 方向：出站。"
+
+[[groups.items]]
+ident = "DIRECTION_UNSPECIFIED"
+value = "unspecified"
+kind = "label_value"
+usage = ["tracing"]
+doc = "Handler 方向：未指定（兜底）。"

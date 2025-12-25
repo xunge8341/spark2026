@@ -1,0 +1,260 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "Prometheus 数据源",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "9.3.0"
+    },
+    {
+      "type": "datasource",
+      "id": "prometheus",
+      "name": "Prometheus",
+      "version": "1.0.0"
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "ReadyState 四态占比与明细，配合 Prometheus 告警与 docs/runbook/retry-after.md 使用。",
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": "${DS_PROMETHEUS}",
+      "description": "ReadyState Ready/Busy/Budget Exhausted/RetryAfter 占比走势，验证告警触发前后的趋势。",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (ready_state) (increase(spark_request_ready_state_total{service_name=~\"$service_name\", route_id=~\"$route_id\", operation=~\"$operation\", protocol=~\"$protocol\"}[5m])) / clamp_min(sum(increase(spark_request_ready_state_total{service_name=~\"$service_name\", route_id=~\"$route_id\", operation=~\"$operation\", protocol=~\"$protocol\"}[5m])), 1)",
+          "legendFormat": "{{ready_state}}",
+          "refId": "A"
+        }
+      ],
+      "title": "ReadyState 占比（5m increase）",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "${DS_PROMETHEUS}",
+      "description": "ReadyState Ready 占比的滑动平均，用于提前观察 Ready 基线下滑趋势。",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {}
+      },
+      "targets": [
+        {
+          "expr": "avg_over_time((sum by (service_name, route_id, operation, protocol) (increase(spark_request_ready_state_total{service_name=~\"$service_name\", route_id=~\"$route_id\", operation=~\"$operation\", protocol=~\"$protocol\", ready_state=\"ready\"}[5m])) / clamp_min(sum by (service_name, route_id, operation, protocol) (increase(spark_request_ready_state_total{service_name=~\"$service_name\", route_id=~\"$route_id\", operation=~\"$operation\", protocol=~\"$protocol\"}[5m])), 1))[10m:5m])",
+          "legendFormat": "Ready avg",
+          "refId": "A"
+        }
+      ],
+      "title": "Ready 占比（10m 滑动平均）",
+      "type": "stat"
+    },
+    {
+      "datasource": "${DS_PROMETHEUS}",
+      "description": "Busy/Budget Exhausted/RetryAfter 明细标签，识别最常见的退避原因。",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (ready_state, ready_detail) (increase(spark_request_ready_state_total{service_name=~\"$service_name\", route_id=~\"$route_id\", operation=~\"$operation\", protocol=~\"$protocol\", ready_state!=\"ready\"}[5m]))",
+          "legendFormat": "{{ready_state}}/{{ready_detail}}",
+          "refId": "A"
+        }
+      ],
+      "title": "ReadyState 事件次数（5m increase）",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "${DS_PROMETHEUS}",
+      "description": "RetryAfter 速率与阈值对比，验证 `SparkServiceRetryAfterBurst` 告警。",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(spark_request_retry_after_total{service_name=~\"$service_name\", route_id=~\"$route_id\", operation=~\"$operation\", protocol=~\"$protocol\"}[5m]))",
+          "legendFormat": "RetryAfter rate",
+          "refId": "A"
+        },
+        {
+          "expr": "0.0167",
+          "legendFormat": "Threshold (>=5 次/5m)",
+          "refId": "B"
+        }
+      ],
+      "title": "RetryAfter 速率与阈值",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 37,
+  "style": "dark",
+  "tags": [
+    "spark",
+    "ready-state"
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "service_name",
+        "type": "query",
+        "datasource": "${DS_PROMETHEUS}",
+        "definition": "label_values(spark_request_ready_state_total, service_name)",
+        "query": "label_values(spark_request_ready_state_total, service_name)",
+        "refresh": 1,
+        "current": {}
+      },
+      {
+        "name": "route_id",
+        "type": "query",
+        "datasource": "${DS_PROMETHEUS}",
+        "definition": "label_values(spark_request_ready_state_total{service_name=~\"$service_name\"}, route_id)",
+        "query": "label_values(spark_request_ready_state_total{service_name=~\"$service_name\"}, route_id)",
+        "refresh": 1,
+        "current": {}
+      },
+      {
+        "name": "operation",
+        "type": "query",
+        "datasource": "${DS_PROMETHEUS}",
+        "definition": "label_values(spark_request_ready_state_total{service_name=~\"$service_name\", route_id=~\"$route_id\"}, operation)",
+        "query": "label_values(spark_request_ready_state_total{service_name=~\"$service_name\", route_id=~\"$route_id\"}, operation)",
+        "refresh": 1,
+        "current": {}
+      },
+      {
+        "name": "protocol",
+        "type": "query",
+        "datasource": "${DS_PROMETHEUS}",
+        "definition": "label_values(spark_request_ready_state_total{service_name=~\"$service_name\", route_id=~\"$route_id\", operation=~\"$operation\"}, protocol)",
+        "query": "label_values(spark_request_ready_state_total{service_name=~\"$service_name\", route_id=~\"$route_id\", operation=~\"$operation\"}, protocol)",
+        "refresh": 1,
+        "current": {}
+      }
+    ]
+  },
+  "time": {
+    "from": "now-3h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "30s",
+      "1m",
+      "5m",
+      "15m"
+    ]
+  },
+  "timezone": "",
+  "title": "Spark ReadyState Overview",
+  "uid": "spark-ready-state-overview",
+  "version": 1,
+  "weekStart": ""
+}

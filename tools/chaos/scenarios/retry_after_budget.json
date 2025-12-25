@@ -1,0 +1,48 @@
+{
+  "id": "retry_after_budget",
+  "title": "T7｜Retry-After 与预算联动回归",
+  "description": "模拟服务端在 2 秒内以 200ms Retry-After 头持续节流，同时压缩客户端预算，验证退避策略不会放大预算消耗。",
+  "impact": "请求将被节流但不会完全失败，确保高频 Retry-After 时仍保持低错误率并受预算保护。",
+  "steady_state_check": {
+    "metric": "http_error_rate",
+    "threshold": 0.02,
+    "comparison": "<=",
+    "observation_window": "5m"
+  },
+  "steps": [
+    {
+      "id": "inject_retry_after",
+      "action": "shell",
+      "command": "kubectl apply -f k8s/chaos/retry-after-200ms.yaml",
+      "rollback": "kubectl delete -f k8s/chaos/retry-after-200ms.yaml --ignore-not-found",
+      "expected_slo": {
+        "name": "http_error_rate",
+        "comparison": "<=",
+        "threshold": 0.02
+      },
+      "observation": "在 2 秒节流窗口内，HTTP 错误率保持在 2% 以下，说明客户端未盲目重试。"
+    },
+    {
+      "id": "verify_retry_after_linear",
+      "action": "check-metric",
+      "query": "sum(rate(retry_after_total{service=\"checkout\"}[1m])) / sum(rate(http_requests_total{service=\"checkout\"}[1m]))",
+      "expected_slo": {
+        "name": "retry_after_to_request_ratio",
+        "comparison": "<=",
+        "threshold": 1.1
+      },
+      "observation": "Retry-After 事件与请求数近似线性增长（比例不超过 1.1），表明退避未触发指数重试。"
+    },
+    {
+      "id": "budget_guardrail",
+      "action": "check-metric",
+      "query": "max(increase(budget_exhausted_total{service=\"checkout\"}[5m]))",
+      "expected_slo": {
+        "name": "budget_exhausted_total",
+        "comparison": "<=",
+        "threshold": 5
+      },
+      "observation": "预算消耗事件控制在阈值 5 以内，确认限流未触发预算连锁耗尽。"
+    }
+  ]
+}

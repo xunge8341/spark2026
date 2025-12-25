@@ -1,0 +1,37 @@
+{
+  "id": "db_failover",
+  "title": "主库下线触发读写分离回切",
+  "description": "通过暂停主库进程模拟故障，验证连接池与 failover 流程。",
+  "impact": "写入请求会短暂失败，需确保重试与主从切换生效。",
+  "steady_state_check": {
+    "metric": "db_availability",
+    "threshold": 99.9,
+    "comparison": ">=",
+    "observation_window": "10m"
+  },
+  "steps": [
+    {
+      "id": "drain_traffic",
+      "action": "shell",
+      "command": "kubectl scale deployment db-primary --replicas=0",
+      "rollback": "kubectl scale deployment db-primary --replicas=1",
+      "expected_slo": {
+        "name": "write_success_rate",
+        "comparison": ">=",
+        "threshold": 0.98
+      },
+      "observation": "写入成功率可在 1 分钟内恢复至 98% 以上。"
+    },
+    {
+      "id": "verify_read_pool",
+      "action": "check-metric",
+      "query": "db_replica_lag_seconds{cluster=\"order-db\"}",
+      "expected_slo": {
+        "name": "db_replica_lag_seconds",
+        "comparison": "<=",
+        "threshold": 5
+      },
+      "observation": "副本延迟保持在 5 秒以内，表示回切顺利。"
+    }
+  ]
+}

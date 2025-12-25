@@ -1,0 +1,33 @@
+[package]
+name = "spark-transport-quic"
+version = "0.1.0"
+edition.workspace = true
+publish = false
+license = "Apache-2.0"
+
+[lib]
+# QUIC 传输当前仅提供单元测试。禁用 `cargo bench` 对该 crate 的回调，
+# 可避免 `--quick` 参数由 `libtest` 解析失败。
+bench = false
+
+[dependencies]
+spark-core = { workspace = true, features = ["std"] }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time", "net", "io-util", "sync"], optional = true }
+quinn = { workspace = true, optional = true }
+quinn-proto = { workspace = true, optional = true }
+futures = { workspace = true, optional = true }
+bytes.workspace = true
+
+[features]
+default = ["runtime-tokio"]
+runtime-tokio = ["dep:tokio", "dep:quinn", "dep:quinn-proto", "dep:futures"]
+batch-udp-unix = ["runtime-tokio", "dep:socket2"]
+
+[dev-dependencies]
+rcgen = { workspace = true }
+rustls-pki-types = { workspace = true }
+
+[dependencies.socket2]
+workspace = true
+optional = true

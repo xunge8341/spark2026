@@ -1,0 +1,100 @@
+{
+  "activation": {
+    "decode_40": [
+      {
+        "action": {
+          "backoff_ms": 200,
+          "kind": "retry",
+          "max_attempts": 2
+        },
+        "engaged": true,
+        "rule_id": "decode.retry",
+        "summary": "解码预算重试"
+      }
+    ],
+    "decode_90": [
+      {
+        "action": {
+          "backoff_ms": 200,
+          "kind": "retry",
+          "max_attempts": 2
+        },
+        "engaged": false,
+        "rule_id": "decode.retry",
+        "summary": "解码预算重试"
+      }
+    ],
+    "flow_15": [
+      {
+        "action": {
+          "kind": "circuit_break",
+          "open_for_ms": 30000
+        },
+        "engaged": true,
+        "rule_id": "flow.circuit-breaker",
+        "summary": "流量熔断窗口"
+      }
+    ],
+    "flow_30": [
+      {
+        "action": {
+          "kind": "rate_limit",
+          "limit_percent": 60
+        },
+        "engaged": true,
+        "rule_id": "flow.rate-limit",
+        "summary": "流量预警限流"
+      }
+    ],
+    "flow_80": [
+      {
+        "action": {
+          "kind": "rate_limit",
+          "limit_percent": 60
+        },
+        "engaged": false,
+        "rule_id": "flow.rate-limit",
+        "summary": "流量预警限流"
+      },
+      {
+        "action": {
+          "kind": "circuit_break",
+          "open_for_ms": 30000
+        },
+        "engaged": false,
+        "rule_id": "flow.circuit-breaker",
+        "summary": "流量熔断窗口"
+      }
+    ]
+  },
+  "load": {
+    "added": [
+      "decode.retry",
+      "flow.circuit-breaker",
+      "flow.rate-limit"
+    ],
+    "removed": [],
+    "retained": []
+  },
+  "post_reload_flow_10": [
+    {
+      "action": {
+        "kind": "rate_limit",
+        "limit_percent": 60
+      },
+      "engaged": true,
+      "rule_id": "flow.rate-limit",
+      "summary": "流量预警限流"
+    }
+  ],
+  "reload": {
+    "added": [],
+    "removed": [
+      "flow.circuit-breaker"
+    ],
+    "retained": [
+      "decode.retry",
+      "flow.rate-limit"
+    ]
+  }
+}

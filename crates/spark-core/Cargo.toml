@@ -1,0 +1,141 @@
+[package]
+name = "spark-core"
+version = "0.1.0"
+edition.workspace = true
+rust-version = "1.89"
+authors = ["Gemini 架构组 <architecture@gemini.example>"]
+license = "Apache-2.0"
+description = "spark-core: 高性能、协议无关、分布式原生的异步通信框架核心契约"
+build = "build.rs"
+
+[lib]
+name = "spark_core"
+path = "src/lib.rs"
+bench = false
+
+[features]
+default = ["std"]
+# 兼容功能开关：默认关闭，后续按业务域逐步启用旧版信号的适配层。
+compat_v0 = []
+# `alloc` Feature 作为向下游传播的标记：核心始终依赖堆，但允许调用方通过 Feature 显式声明需求。
+alloc = []
+std = ["alloc"]
+loom-model = ["dep:loom", "std"]
+std_json = ["std", "dep:serde_json"]
+error_contract_doc = ["std", "dep:toml"]
+observability_contract_doc = ["std", "dep:toml"]
+configuration_event_doc = ["std", "dep:toml"]
+
+[dependencies]
+async-trait = { workspace = true, default-features = false }
+spark-macros = { workspace = true }
+serde = { workspace = true, features = ["derive", "alloc"] }
+sha2 = { workspace = true, default-features = false }
+loom = { workspace = true, default-features = false, optional = true }
+spin = { workspace = true, default-features = false, features = ["rwlock", "mutex", "spin_mutex"] }
+libm = { workspace = true }
+serde_json = { workspace = true, optional = true }
+toml = { workspace = true, optional = true }
+bytes = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+proptest = { workspace = true }
+thiserror = { workspace = true }
+spark-contract-tests = { workspace = true }
+futures = { workspace = true, features = ["executor"] }
+serde_json = { workspace = true }
+toml = { workspace = true }
+spark-hosting = { workspace = true, features = ["std"] }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)', 'cfg(spark_loom)'] }
+
+[[bench]]
+name = "codec"
+harness = false
+[[bench]]
+name = "smoke"
+harness = false
+
+[[bench]]
+name = "configuration"
+harness = false
+
+[[bench]]
+name = "buffer_roundtrip"
+harness = false
+
+[[bench]]
+name = "async_contract_overhead"
+harness = false
+
+[[bench]]
+name = "zerocopy_extremes"
+harness = false
+
+# 单独注册服务宏相关契约测试，避免引入完整 `contracts` 套件对内部模块的访问依赖。
+[[test]]
+name = "contracts_service_macro"
+path = "tests/contracts/service_macro.rs"
+
+[[test]]
+name = "contracts_context_propagation_spawn"
+path = "tests/contracts/context_propagation_spawn.rs"
+
+[[test]]
+name = "concurrency_primitives"
+path = "tests/concurrency_primitives.rs"
+
+[[test]]
+name = "contracts_error_category_autoresponse"
+path = "tests/contracts/error_category_autoresponse.rs"
+
+[[test]]
+name = "contracts_ready_state_matrix"
+path = "tests/contracts/ready_state_matrix.rs"
+
+[[test]]
+name = "pipeline"
+path = "tests/pipeline/mod.rs"
+
+[[test]]
+name = "time"
+path = "tests/time/mod.rs"
+
+[[test]]
+name = "retry"
+path = "tests/retry/mod.rs"
+
+[[bin]]
+name = "gen_error_doc"
+path = "../../tools/gen_error_doc.rs"
+required-features = ["std", "error_contract_doc"]
+bench = false
+test = false
+
+[[bin]]
+name = "gen_observability_doc"
+path = "../../tools/gen_observability_doc.rs"
+required-features = ["std", "observability_contract_doc"]
+bench = false
+test = false
+
+[[bin]]
+name = "gen_config_events_doc"
+path = "../../tools/gen_config_events_doc.rs"
+required-features = ["std", "configuration_event_doc"]
+bench = false
+test = false
+
+[[bin]]
+name = "gen_config_events_artifacts"
+path = "../../tools/gen_config_events_artifacts.rs"
+required-features = ["std", "configuration_event_doc", "std_json"]
+bench = false
+test = false
+
+[build-dependencies]
+serde = { workspace = true, features = ["derive"] }
+toml = { workspace = true }
+heck = "0.4"

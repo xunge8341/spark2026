@@ -1,0 +1,30 @@
+{
+  "profile": {
+    "identifier": "prod",
+    "layering": "base_first",
+    "extends": [
+      "base"
+    ],
+    "summary": "production profile"
+  },
+  "version": 1,
+  "layers": [
+    {
+      "name": "bootstrap",
+      "priority": 0,
+      "version": null
+    }
+  ],
+  "entries": [
+    {
+      "key": "runtime::token@global",
+      "value": "[REDACTED]",
+      "metadata": {
+        "hot_reloadable": false,
+        "encrypted": true,
+        "experimental": false,
+        "tags": []
+      }
+    }
+  ]
+}

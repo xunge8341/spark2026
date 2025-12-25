@@ -1,0 +1,60 @@
+[package]
+name = "spark2026-fuzz"
+version = "0.0.1"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = { version = "0.4", features = ["arbitrary-derive"] }
+arbitrary = { version = "1", features = ["derive"] }
+
+[dependencies.spark-core]
+path = "../../spark-core"
+features = ["std"]
+
+[dependencies.spark-codec-line]
+path = "../../spark-codec-line"
+features = ["std"]
+
+[dependencies.spark-codecs]
+path = "../../spark-codecs"
+features = ["std"]
+
+[dependencies.spark-codec-rtp]
+path = "../../spark-codec-rtp"
+features = ["std"]
+
+[dependencies.spark-codec-sip]
+path = "../../spark-codec-sip"
+features = ["std"]
+
+[dependencies.spark-codec-sdp]
+path = "../../spark-codec-sdp"
+features = ["std"]
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "codec_roundtrip"
+path = "fuzz_targets/codec_roundtrip.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "state_machine"
+path = "fuzz_targets/state_machine.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "protocol_regression"
+path = "fuzz_targets/protocol_regression.rs"
+test = false
+doc = false
+bench = false
