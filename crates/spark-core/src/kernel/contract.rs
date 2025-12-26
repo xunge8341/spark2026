@@ -3,9 +3,9 @@ use crate::{
     context::Context,
     observability::TraceContext,
     runtime::AsyncRuntime,
-    security::{IdentityDescriptor, SecurityPolicy},
     service::ClientFactory,
 };
+use super::attributes::Attributes;
 use alloc::sync::Arc;
 use alloc::{format, string::ToString, vec, vec::Vec};
 //
@@ -319,90 +319,6 @@ pub trait ContractStateMachine {
     fn on_signal(&mut self, signal: &Self::Signal) -> StateAdvance<Self::State>;
 }
 
-/// 安全上下文快照，承载调用者与对端的身份/策略元数据。
-///
-/// # 设计背景（Why）
-/// - 符合“安全最小面”原则：接口默认启用安全校验，仅在显式调用 `allow_insecure` 后才允许降级。
-/// - `Identity`、`Peer`、`Policy` 均以 [`Arc`] 包裹，确保在异步任务中复制成本可控且不会意外过期。
-///
-/// # 契约说明（What）
-/// - `identity`：当前调用主体（如服务账户、人类用户）。
-/// - `peer_identity`：通信对端身份（如下游服务、客户端证书）。
-/// - `policy`：已生效的安全策略，用于审计与再评估。
-/// - `allow_insecure`：显式标记可在当前调用中允许不安全模式（例如调试场景）。
-#[derive(Clone, Debug, Default)]
-pub struct SecurityContextSnapshot {
-    identity: Option<Arc<IdentityDescriptor>>,
-    peer_identity: Option<Arc<IdentityDescriptor>>,
-    policy: Option<Arc<SecurityPolicy>>,
-    allow_insecure: bool,
-}
-
-impl SecurityContextSnapshot {
-    /// 设置当前调用主体。
-    pub fn with_identity(mut self, identity: IdentityDescriptor) -> Self {
-        self.identity = Some(Arc::new(identity));
-        self
-    }
-
-    /// 设置通信对端身份。
-    pub fn with_peer_identity(mut self, identity: IdentityDescriptor) -> Self {
-        self.peer_identity = Some(Arc::new(identity));
-        self
-    }
-
-    /// 设置生效策略。
-    pub fn with_policy(mut self, policy: SecurityPolicy) -> Self {
-        self.policy = Some(Arc::new(policy));
-        self
-    }
-
-    /// 允许在当前调用中降级安全检查。
-    pub fn allow_insecure(mut self) -> Self {
-        self.allow_insecure = true;
-        self
-    }
-
-    /// 获取主体身份。
-    pub fn identity(&self) -> Option<&Arc<IdentityDescriptor>> {
-        self.identity.as_ref()
-    }
-
-    /// 获取对端身份。
-    pub fn peer_identity(&self) -> Option<&Arc<IdentityDescriptor>> {
-        self.peer_identity.as_ref()
-    }
-
-    /// 获取当前策略。
-    pub fn policy(&self) -> Option<&Arc<SecurityPolicy>> {
-        self.policy.as_ref()
-    }
-
-    /// 是否允许降级为不安全模式。
-    pub fn is_insecure_allowed(&self) -> bool {
-        self.allow_insecure
-    }
-
-    /// 校验是否允许以安全模式继续执行。
-    pub fn ensure_secure(&self) -> crate::Result<(), SparkError> {
-        if self.allow_insecure {
-            return Ok(());
-        }
-        if self.identity.is_none() {
-            return Err(SparkError::new(
-                crate::error::codes::APP_UNAUTHORIZED,
-                "缺少调用身份，禁止在安全模式下继续执行",
-            ));
-        }
-        if self.policy.is_none() {
-            return Err(SparkError::new(
-                crate::error::codes::APP_UNAUTHORIZED,
-                "缺少生效安全策略，禁止在安全模式下继续执行",
-            ));
-        }
-        Ok(())
-    }
-}
 
 /// 可观测性契约，声明必须上报的指标/日志字段/追踪键。
 ///
@@ -515,7 +431,7 @@ struct CallContextInner {
     cancellation: Cancellation,
     deadline: Deadline,
     budgets: Vec<Budget>,
-    security: SecurityContextSnapshot,
+    attributes: Arc<Attributes>,
     observability: ObservabilityContract,
     trace_context: TraceContext,
     client_factory: Option<Arc<dyn ClientFactory>>,
@@ -528,7 +444,7 @@ impl fmt::Debug for CallContextInner {
             .field("cancellation", &self.cancellation)
             .field("deadline", &self.deadline)
             .field("budgets", &self.budgets)
-            .field("security", &self.security)
+            .field("attributes", &self.attributes)
             .field("observability", &self.observability)
             .field("trace_context", &self.trace_context)
             .field("client_factory", &self.client_factory.is_some())
@@ -547,7 +463,7 @@ impl fmt::Debug for CallContextInner {
 /// - `Cancellation`：通过 [`CallContext::cancellation`] 获取，调用方在关键路径需及时检查取消标记。
 /// - `Deadline`：使用 [`CallContext::deadline`] 查询绝对超时点，可结合 [`MonotonicTimePoint`] 判断是否过期。
 /// - `Budgets`：通过 [`CallContext::budget`] 或 [`CallContext::budgets`] 获取，统一协调资源限额与背压语义。
-/// - `SecurityContextSnapshot`：使用 [`CallContext::security`] 检查身份策略；若未显式允许不安全模式，调用前应调用 [`SecurityContextSnapshot::ensure_secure`].
+/// - `Attributes`：通过 [`CallContext::attributes`] 透传治理数据（身份、审计 tag、安全等级等），Core 不感知其语义。
 /// - `ObservabilityContract`：通过 [`CallContext::observability`] 获取指标/日志/追踪键规范。
 ///
 /// # 风险提示（Trade-offs）
@@ -567,6 +483,11 @@ impl CallContext {
     /// 获取取消原语。
     pub fn cancellation(&self) -> &Cancellation {
         &self.inner.cancellation
+    }
+
+    /// 获取动态属性容器（The Visa）。
+    pub fn attributes(&self) -> &Attributes {
+        &self.inner.attributes
     }
 
     /// 查询截止时间。
@@ -604,11 +525,6 @@ impl CallContext {
     /// 供 `Context` 生成零拷贝视图的内部辅助函数。
     pub(crate) fn budgets_slice(&self) -> &[Budget] {
         &self.inner.budgets
-    }
-
-    /// 获取安全上下文。
-    pub fn security(&self) -> &SecurityContextSnapshot {
-        &self.inner.security
     }
 
     /// 获取可观测性契约。
@@ -674,7 +590,7 @@ pub struct CallContextBuilder {
     cancellation: Cancellation,
     deadline: Deadline,
     budgets: Vec<Budget>,
-    security: SecurityContextSnapshot,
+    attributes: Arc<Attributes>,
     observability: ObservabilityContract,
     trace_context: TraceContext,
     client_factory: Option<Arc<dyn ClientFactory>>,
@@ -687,7 +603,7 @@ impl Default for CallContextBuilder {
             cancellation: Cancellation::new(),
             deadline: Deadline::none(),
             budgets: Vec::new(),
-            security: SecurityContextSnapshot::default(),
+            attributes: Arc::new(Attributes::new()),
             observability: ObservabilityContract::default(),
             trace_context: TraceContext::generate(),
             client_factory: None,
@@ -714,10 +630,9 @@ impl CallContextBuilder {
         self.budgets.push(budget);
         self
     }
-
-    /// 设置安全上下文。
-    pub fn with_security(mut self, security: SecurityContextSnapshot) -> Self {
-        self.security = security;
+    /// 注入预设的属性集合（治理数据签证）。
+    pub fn with_attributes(mut self, attributes: Arc<Attributes>) -> Self {
+        self.attributes = attributes;
         self
     }
 
@@ -761,7 +676,7 @@ impl CallContextBuilder {
                 cancellation: self.cancellation,
                 deadline: self.deadline,
                 budgets,
-                security: self.security,
+                attributes: self.attributes,
                 observability: self.observability,
                 trace_context: self.trace_context,
                 client_factory: self.client_factory,

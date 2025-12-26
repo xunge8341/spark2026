@@ -25,6 +25,7 @@
 
 pub mod arc_swap;
 pub mod common;
+pub mod attributes;
 pub mod context;
 pub mod contract;
 pub mod future;
