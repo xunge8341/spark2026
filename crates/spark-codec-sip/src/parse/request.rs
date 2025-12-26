@@ -56,7 +56,7 @@ pub fn parse_request<'a>(input: &'a str) -> spark_core::Result<SipMessage<'a>, S
 ///   - 前置条件：header 必须是合法 UTF-8（符合 RFC 3261 的 ASCII/UTF-8 约束）；
 ///   - 后置条件：若分隔符缺失或 header 无法通过 UTF-8 校验，将返回 [`SipParseError::UnexpectedEof`] 或 [`SipParseError::InvalidHeaderValue`]。
 /// - **实现要点（How）**：
-///   1. 调用 [`split_headers_body_bytes`] 快速定位 `\r\n\r\n` 分隔符，避免对正文进行 UTF-8 校验；
+///   1. 调用 `split_headers_body_bytes` 快速定位 `\r\n\r\n` 分隔符，避免对正文进行 UTF-8 校验；
 ///   2. 仅对 header 部分执行 `from_utf8`，随后复用 `parse_request_line` 与 `parse_headers` 完成语法解析；
 ///   3. 将 body 保留为 `&[u8]` 直接塞入 [`SipMessage`]，保证零拷贝透传。
 /// - **风险提示（Trade-offs & Gotchas）**：

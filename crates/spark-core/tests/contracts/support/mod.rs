@@ -26,12 +26,12 @@ pub(crate) use r#async::block_on;
 pub(crate) use deterministic::*;
 pub(crate) use macros::*;
 
-use spark_core::types::BudgetKind;
-use spark_core::runtime::MonotonicTimePoint;
-use spark_core::security::{
+use spark_core::governance::security::{
     IdentityDescriptor, IdentityKind, PolicyEffect, PolicyRule, ResourcePattern, SecurityPolicy,
     SubjectMatcher,
 };
+use spark_core::runtime::MonotonicTimePoint;
+use spark_core::types::BudgetKind;
 use std::sync::Arc;
 use std::time::Duration;
 
