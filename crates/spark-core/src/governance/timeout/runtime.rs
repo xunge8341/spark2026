@@ -29,7 +29,7 @@ use crate::arc_swap::ArcSwap;
 use crate::governance::configuration::{
     ConfigKey, ConfigScope, ConfigValue, ResolvedConfiguration,
 };
-use crate::governance::observability::MetricsProvider;
+use crate::observability::MetricsProvider;
 use crate::platform::runtime::{
     HotReloadApplyTimer, HotReloadFence, HotReloadObservability, HotReloadReadGuard,
     HotReloadWriteGuard,
