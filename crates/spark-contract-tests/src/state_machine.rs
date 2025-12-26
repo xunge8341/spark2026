@@ -1,10 +1,8 @@
 use crate::case::{TckCase, TckSuite};
-use crate::support::{build_allow_all_policy, build_identity, monotonic};
+use crate::support::monotonic;
 use spark_core::context::Context;
 use spark_core::{
-    contract::{
-        CallContext, Cancellation, Deadline, ObservabilityContract, SecurityContextSnapshot,
-    },
+    contract::{CallContext, Cancellation, Deadline, ObservabilityContract},
     types::{Budget, BudgetKind},
 };
 use std::time::Duration;
@@ -60,9 +58,6 @@ fn call_context_preserves_inputs_and_execution_view() {
     let deadline = Deadline::with_timeout(monotonic(100, 0), Duration::from_secs(5));
     let budget_kind = BudgetKind::Decode;
     let budget = Budget::new(budget_kind.clone(), 8);
-    let security = SecurityContextSnapshot::default()
-        .with_identity(build_identity("catalog"))
-        .with_policy(build_allow_all_policy("policy-call"));
     let observability =
         ObservabilityContract::new(&["metric.a"], &["field.a"], &["trace.a"], &["audit.a"]);
 
@@ -70,7 +65,6 @@ fn call_context_preserves_inputs_and_execution_view() {
         .with_cancellation(cancellation.clone())
         .with_deadline(deadline)
         .add_budget(budget.clone())
-        .with_security(security.clone())
         .with_observability(observability)
         .build();
 

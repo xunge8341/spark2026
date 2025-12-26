@@ -23,8 +23,9 @@ use spark_core::{
         AttributeSet, InstrumentDescriptor, MetricsProvider,
         metrics::contract::hot_reload as contract,
     },
-    runtime::{HotReloadApplyTimer, HotReloadFence, TimeoutRuntimeConfig, TimeoutSettings},
+    runtime::{HotReloadApplyTimer, HotReloadFence},
     test_stubs::observability::{NoopCounter, NoopGauge, NoopHistogram},
+    timeout::{TimeoutRuntimeConfig, TimeoutSettings},
 };
 
 /// 自定义测试数据源：同 `limits_timeout` 用例，但复用在一致性验证中。

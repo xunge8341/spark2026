@@ -70,7 +70,6 @@ pub mod attributes {
         #[doc = "重试类错误导致的繁忙方向（上游/下游）。"]
         pub const ATTR_BUSY_DIRECTION: &str = "error.busy.direction";
     }
-
 }
 
 /// labels 键名分组（模块标识：labels）
@@ -130,7 +129,6 @@ pub mod labels {
         #[doc = "未归类错误的兜底标签。"]
         pub const UNKNOWN: &str = "unknown";
     }
-
 }
 
 /// logging 键名分组（模块标识：logging）
@@ -296,7 +294,6 @@ pub mod logging {
         #[doc = "关机耗时，毫秒。"]
         pub const FIELD_ELAPSED_MS: &str = "shutdown.elapsed.ms";
     }
-
 }
 
 /// metrics 键名分组（模块标识：metrics）
@@ -627,7 +624,6 @@ pub mod metrics {
         #[doc = "对端角色：服务端。"]
         pub const ROLE_SERVER: &str = "server";
     }
-
 }
 
 /// resource 键名分组（模块标识：resource）
@@ -681,7 +677,6 @@ pub mod resource {
         #[doc = "自动化安装层版本（若使用自动注入）。"]
         pub const ATTR_TELEMETRY_AUTO_VERSION: &str = "telemetry.auto.version";
     }
-
 }
 
 /// tracing 键名分组（模块标识：tracing）
@@ -741,6 +736,4 @@ pub mod tracing {
         #[doc = "Handler 方向：未指定（兜底）。"]
         pub const DIRECTION_UNSPECIFIED: &str = "unspecified";
     }
-
 }
-

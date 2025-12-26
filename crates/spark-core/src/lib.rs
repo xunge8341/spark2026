@@ -132,8 +132,8 @@ pub use configuration::{
 pub use context::Context;
 pub use contract::{
     BackpressureSignal, CallContext, CallContextBuilder, Cancellation, ContractStateMachine,
-    DEFAULT_OBSERVABILITY_CONTRACT, Deadline, ObservabilityContract, SecurityContextSnapshot,
-    ShutdownGraceful, ShutdownImmediate, StateAdvance,
+    DEFAULT_OBSERVABILITY_CONTRACT, Deadline, ObservabilityContract, ShutdownGraceful,
+    ShutdownImmediate, StateAdvance,
 };
 pub use error::{
     CoreError, DomainError, DomainErrorKind, ErrorCategory, ErrorCause, ImplError, ImplErrorKind,
@@ -176,7 +176,7 @@ pub use runtime::{
     SloPolicyAction, SloPolicyConfigError, SloPolicyDirective, SloPolicyManager,
     SloPolicyReloadReport, SloPolicyRule, SloPolicyTrigger, TaskCancellationStrategy, TaskError,
     TaskExecutor, TaskHandle, TaskLaunchOptions, TaskPriority, TaskResult, TimeDriver,
-    TimeoutConfigError, TimeoutRuntimeConfig, TimeoutSettings, slo_policy_table_key,
+    slo_policy_table_key,
 };
 pub use security::{
     Credential, CredentialDescriptor, CredentialMaterial, CredentialScope, CredentialState,
@@ -190,6 +190,7 @@ pub use service::{
     AutoDynBridge, BoxService, ClientFactory, Decode, DynService, Encode, Layer, Service,
     ServiceObject, type_mismatch_error,
 };
+pub use timeout::{TimeoutConfigError, TimeoutRuntimeConfig, TimeoutSettings};
 pub use types::{
     Budget, BudgetDecision, BudgetKind, BudgetSet, BudgetSnapshot, CloseReason, NonEmptyStr,
 };

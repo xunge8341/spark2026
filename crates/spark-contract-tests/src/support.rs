@@ -1,9 +1,5 @@
 use parking_lot::Mutex;
 use spark_core::runtime::MonotonicTimePoint;
-use spark_core::security::{
-    IdentityDescriptor, IdentityKind, PolicyEffect, PolicyRule, ResourcePattern, SecurityPolicy,
-    SubjectMatcher,
-};
 use spark_core::types::{BudgetKind, BudgetSnapshot};
 use std::fmt::Write;
 use std::panic;
@@ -52,39 +48,6 @@ pub fn panic_with_context(suite: &str, case: &str, payload: Box<dyn std::any::An
 /// - **后置条件**：返回的时间点可直接用于 `Deadline::with_timeout` 等 API。
 pub fn monotonic(secs: u64, nanos: u32) -> MonotonicTimePoint {
     MonotonicTimePoint::from_offset(Duration::new(secs, nanos))
-}
-
-/// 构造测试专用的身份描述。
-///
-/// # 设计目的（Why）
-/// - `SecurityContextSnapshot` 相关测试需要合法身份，集中生成可复用的样例。
-///
-/// # 契约（What）
-/// - **输入**：`name` 为服务名片段，会附加到固定 authority；
-/// - **后置条件**：返回的 [`IdentityDescriptor`] 可直接注入安全上下文。
-pub fn build_identity(name: &str) -> IdentityDescriptor {
-    IdentityDescriptor::new(
-        "spiffe://tests.spark2026".to_string(),
-        format!("service/{name}"),
-        IdentityKind::Service,
-    )
-}
-
-/// 构造仅包含一条“允许全部”规则的安全策略。
-///
-/// # 设计目的（Why）
-/// - 多数测试只需最小权限集合即可通过 `ensure_secure` 校验，无需搭建完整 ACL。
-///
-/// # 契约（What）
-/// - **输入**：`policy_id` 为策略标识；
-/// - **后置条件**：策略包含一条 `Allow` 规则，可直接绑定至安全上下文。
-pub fn build_allow_all_policy(policy_id: &str) -> SecurityPolicy {
-    let rule = PolicyRule::new(
-        vec![SubjectMatcher::Any],
-        vec![ResourcePattern::new("service".to_string()).add_action("*".to_string())],
-        PolicyEffect::Allow,
-    );
-    SecurityPolicy::new(policy_id.to_string(), vec![rule])
 }
 
 /// 构造自定义预算种类，并返回底层 `Arc<str>`，便于测试引用计数。
