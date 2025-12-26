@@ -17,7 +17,7 @@ bench = false
 
 [dependencies]
 spark-core = { workspace = true, features = ["std"] }
-spark-codec-sip = { workspace = true }
+spark-codec-sip = { workspace = true, features = ["alloc"] }
 bytes.workspace = true
 spark-codec-sdp = { workspace = true }
 spark-transport-udp = { workspace = true, features = ["batch-udp-unix"] }
@@ -25,7 +25,7 @@ anyhow = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time", "net", "io-util", "sync"] }
 
 [dev-dependencies]
-spark-router = { workspace = true }
+spark-router = { workspace = true, features = ["std"] }
 spark-transport-tcp = { workspace = true }
 spark-transport-tls = { workspace = true }
 spark-transport-quic = { workspace = true }

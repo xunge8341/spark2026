@@ -19,7 +19,7 @@ use spark_core::{
     },
     future::Stream,
     limits::{LimitRuntimeConfig, LimitSettings, ResourceKind},
-    runtime::{TimeoutRuntimeConfig, TimeoutSettings},
+    timeout::{TimeoutRuntimeConfig, TimeoutSettings},
 };
 
 /// 自定义测试数据源：提供固定初始 Layer，并通过内部队列驱动增量事件。

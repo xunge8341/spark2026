@@ -55,7 +55,7 @@ impl<'a> Context<'a> {
     }
 
     pub fn budget(&self, kind: &BudgetKind) -> Option<&'a Budget> {
-        self.budgets.iter().find(|b| &b.kind == kind)
+        self.budgets.iter().find(|b| b.kind() == kind)
     }
 
     pub fn budgets(&self) -> slice::Iter<'a, Budget> {

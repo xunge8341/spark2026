@@ -123,18 +123,24 @@ impl HotReloadApplyTimer {
 }
 
 /// 热更新观测性的统一封装，用于在每次配置切换后上报 `config_epoch` 与应用延迟。
-pub(crate) struct HotReloadObservability {
+pub struct HotReloadObservability {
     metrics: Option<HotReloadMetrics>,
+}
+
+impl Default for HotReloadObservability {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl HotReloadObservability {
     /// 构造空的观测性对象，默认不打点。
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self { metrics: None }
     }
 
     /// 构造绑定指标提供者与组件标签的观测性对象。
-    pub(crate) fn with_component(
+    pub fn with_component(
         provider: Arc<dyn MetricsProvider>,
         component: Cow<'static, str>,
     ) -> Self {
@@ -149,7 +155,7 @@ impl HotReloadObservability {
     }
 
     /// 记录最新纪元与可选的应用耗时。
-    pub(crate) fn record(&self, epoch: u64, latency: Option<Duration>) {
+    pub fn record(&self, epoch: u64, latency: Option<Duration>) {
         if let Some(metrics) = &self.metrics {
             metrics.record(epoch, latency);
         }

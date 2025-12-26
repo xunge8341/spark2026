@@ -1,11 +1,7 @@
-use crate::{
-    SparkError,
-    context::Context,
-    observability::TraceContext,
-    runtime::AsyncRuntime,
-    service::ClientFactory,
-};
 use super::attributes::Attributes;
+use crate::{
+    context::Context, observability::TraceContext, runtime::AsyncRuntime, service::ClientFactory,
+};
 use alloc::sync::Arc;
 use alloc::{format, string::ToString, vec, vec::Vec};
 //
@@ -318,7 +314,6 @@ pub trait ContractStateMachine {
     /// 根据输入信号推进状态，并返回跃迁结果。
     fn on_signal(&mut self, signal: &Self::Signal) -> StateAdvance<Self::State>;
 }
-
 
 /// 可观测性契约，声明必须上报的指标/日志字段/追踪键。
 ///
