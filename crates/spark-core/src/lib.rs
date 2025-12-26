@@ -55,11 +55,12 @@ pub mod spark {
 pub mod kernel;
 pub use kernel::{arc_swap, common, context, contract, future, ids, model, sealed, status, types};
 
+pub mod deprecation;
 pub mod governance;
 pub use governance::timeout::profile as config;
-pub use governance::{
-    audit, configuration, deprecation, limits, observability, retry, security, timeout,
-};
+pub use governance::{audit, configuration, limits, retry, security, timeout};
+
+pub mod observability;
 
 pub mod data_plane;
 pub use data_plane::{buffer, codec, initializer, pipeline, protocol, service, transport};

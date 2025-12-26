@@ -50,9 +50,9 @@ fn main() {
     );
     let observability_contract = read_observability_keys_contract(&observability_contract_path);
     let observability_generated = render_observability_keys(&observability_contract);
-    let observability_output_path = manifest_dir.join("src/governance/observability/keys.rs");
+    let observability_output_path = manifest_dir.join("src/observability/keys.rs");
     fs::write(&observability_output_path, observability_generated)
-        .expect("写入 governance/observability/keys.rs");
+        .expect("写入 observability/keys.rs");
 
     let config_events_contract_path = manifest_dir.join("../../contracts/config_events.toml");
     println!(
@@ -168,7 +168,7 @@ fn read_observability_keys_contract(path: &Path) -> ObservabilityKeysContract {
 /// # 教案式说明
 /// - **意图（Why）**：构建时一次生成全部指标/日志/追踪键，杜绝人为拼写错误；
 /// - **逻辑（How）**：构造模块树、逐层写入模块注释与常量定义；
-/// - **契约（What）**：返回完整的 Rust 源码字符串，供写入 `crates/spark-core/src/governance/observability/keys.rs`。
+/// - **契约（What）**：返回完整的 Rust 源码字符串，供写入 `crates/spark-core/src/observability/keys.rs`。
 fn render_observability_keys(contract: &ObservabilityKeysContract) -> String {
     let mut groups = contract.groups.clone();
     groups.sort_by(|a, b| a.path.cmp(&b.path));
