@@ -23,7 +23,7 @@ pub mod keystore;
 pub mod negotiation;
 pub mod policy;
 
-pub use class::SecurityClass;
+pub use crate::security::SecurityClass;
 pub use credential::{
     Credential, CredentialDescriptor, CredentialMaterial, CredentialScope, CredentialState,
 };

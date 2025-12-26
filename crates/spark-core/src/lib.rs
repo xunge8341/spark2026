@@ -58,7 +58,8 @@ pub use kernel::{arc_swap, common, context, contract, future, ids, model, sealed
 pub mod deprecation;
 pub mod governance;
 pub use governance::timeout::profile as config;
-pub use governance::{audit, configuration, limits, retry, security, timeout};
+pub use governance::{audit, configuration, limits, retry, timeout};
+pub mod security;
 
 pub mod observability;
 
@@ -141,6 +142,14 @@ pub use error::{
     IntoCoreError, IntoDomainError, Result, SparkError,
 };
 pub use future::{BoxFuture, BoxStream, LocalBoxFuture, Stream};
+pub use governance::security::{
+    Credential, CredentialDescriptor, CredentialMaterial, CredentialScope, CredentialState,
+    IdentityDescriptor, IdentityKind, IdentityProof, KeyMaterial, KeyPurpose, KeyRequest,
+    KeyResponse, KeyRetrievalError, KeySource, NegotiationContext, NegotiationError,
+    NegotiationOutcome, NegotiationResult, PolicyAttachment, PolicyEffect, PolicyRule,
+    ResourcePattern, SecurityNegotiationPlan, SecurityNegotiator, SecurityPolicy, SecurityProtocol,
+    SecurityProtocolOffer, SubjectMatcher,
+};
 pub use host::{
     CapabilityDescriptor, CapabilityLevel, ComponentDescriptor, ComponentFactory,
     ComponentHealthState, ComponentKind, ConfigChange, ConfigConsumer, ConfigEnvelope, ConfigQuery,
@@ -179,14 +188,7 @@ pub use runtime::{
     TaskExecutor, TaskHandle, TaskLaunchOptions, TaskPriority, TaskResult, TimeDriver,
     slo_policy_table_key,
 };
-pub use security::{
-    Credential, CredentialDescriptor, CredentialMaterial, CredentialScope, CredentialState,
-    IdentityDescriptor, IdentityKind, IdentityProof, KeyMaterial, KeyPurpose, KeyRequest,
-    KeyResponse, KeyRetrievalError, KeySource, NegotiationContext, NegotiationError,
-    NegotiationOutcome, NegotiationResult, PolicyAttachment, PolicyEffect, PolicyRule,
-    ResourcePattern, SecurityClass, SecurityNegotiationPlan, SecurityNegotiator, SecurityPolicy,
-    SecurityProtocol, SecurityProtocolOffer, SubjectMatcher,
-};
+pub use security::SecurityClass;
 pub use service::{
     AutoDynBridge, BoxService, ClientFactory, Decode, DynService, Encode, Layer, Service,
     ServiceObject, type_mismatch_error,
