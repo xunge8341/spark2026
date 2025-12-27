@@ -3,7 +3,7 @@
 
 > 目标：指标/日志/追踪键名统一管理，避免代码与仪表盘漂移。
 > 来源：`contracts/observability_keys.toml`（单一事实来源）。
-> 产物：生成 `crates/spark-core/src/governance/observability/keys.rs` 与本文档。
+> 产物：生成 `crates/spark-core/src/observability/keys.rs` 与本文档。
 
 ## 阅读指引
 

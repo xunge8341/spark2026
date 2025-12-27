@@ -50,11 +50,11 @@
 /// - 错误体系：[`CoreError`]、[`Result`];
 /// - 预算与协议：[`crate::contract::Budget`]、[`crate::contract::BudgetDecision`]、
 ///   [`crate::protocol::Event`]、[`crate::protocol::Frame`]、[`crate::protocol::Message`];
-/// - 标识与配置：[`RequestId`]、[`CorrelationId`]、[`IdempotencyKey`]、[`crate::timeout::Timeout`];
+/// - 标识与配置：[`RequestId`]、[`CorrelationId`]、[`IdempotencyKey`];
 /// - 状态语义：[`State`]、[`Status`];
 /// - 管线调度：[`crate::pipeline::Pipeline`]、[`crate::pipeline::PipelineInitializer`],
 ///   [`crate::pipeline::Channel`]、[`crate::transport::ServerChannel`];
-/// - 辅助类型：[`NonEmptyStr`]、[`CloseReason`]、[`BudgetSet`]、[`TimeoutProfile`].
+/// - 辅助类型：[`NonEmptyStr`]、[`CloseReason`]、[`BudgetSet`].
 ///
 /// ## 导出明细（How）
 /// - **入口综述（Why）**：`spark_core::prelude` 面向业务侧提供“调用上下文五元组 + 错误语义 + 预算”一站式导入，
@@ -65,7 +65,7 @@
 ///   [`crate::contract::BudgetKind`]、[`crate::contract::BudgetSnapshot`] 抽象跨层背压资源；
 /// - **错误体系**：[`crate::CoreError`]、[`crate::SparkError`]、[`crate::Result`] 及错误枚举确保统一的诊断与恢复策略；
 /// - **状态/标识**：[`crate::State`]、[`crate::Status`]、[`crate::RequestId`]、[`crate::ids::CorrelationId`],
-///   [`crate::IdempotencyKey`]、[`crate::timeout::Timeout`] 维护状态机与请求追踪；
+///   [`crate::IdempotencyKey`] 维护状态机与请求追踪；
 /// - **观测与运行时**：[`crate::runtime::CoreServices`]、[`crate::runtime::MonotonicTimePoint`],
 ///   [`crate::observability::Logger`]、[`crate::observability::TraceContext`] 提供运行期调度与观测能力；
 /// - **管线调度**：[`crate::pipeline::Pipeline`]、[`crate::pipeline::PipelineInitializer`],
@@ -110,7 +110,6 @@ pub use crate::{
     types::BudgetSet,
 };
 
-pub use crate::timeout::{Timeout, TimeoutProfile};
 pub use crate::{
     CallContext, CallContextBuilder, Cancellation, CloseReason, Deadline, Event, Frame,
     IdempotencyKey, Message, NonEmptyStr, RequestId, State, Status,

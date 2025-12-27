@@ -8,7 +8,7 @@
 
 | 层级 | 代表模块 | 可以直接依赖的契约 | 备注 |
 | ---- | -------- | ------------------ | ---- |
-| Core 契约层 | `crates/spark-core` | 全量 | 发布 `kernel::*`、`governance::*`、`data_plane::*`、`platform::*` 并提供 `prelude` 入口 |
+| Core 契约层 | `crates/spark-core` | 全量 | 发布 `kernel::*`、`data_plane::*`、`platform::*`、`security::*` 并提供 `prelude` 入口 |
 | L2 路由引擎实现 | `crates/spark-router` | `spark_core::pipeline::*`、`spark_core::service::*`、`spark_core::observability::*` | 作为 L2 Router Handler 的标准实现，通过 `spark_router::pipeline::{ApplicationRouter, ApplicationRouterInitializer}` 提供默认实现，示例与教学均统一改走 `spark_router::pipeline` 入口 |
 | 实现层 | `crates/spark-impl-*`、`transport/*` | 仅可通过 `spark_core::{...}` 或 `spark_core::prelude::*` 引入 | 禁止自定义同名契约；若需扩展必须回到 core 讨论 |
 | 业务集成层 | `examples/`、`sdk/` | 推荐使用 `prelude`，如需细分模块需记录在本表 | 业务侧不得重新导出 core 内部模块 |

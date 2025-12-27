@@ -2,52 +2,31 @@
 //!
 //! # 模块定位（Why）
 //! - **新增能力的安全演进**：围绕 T22 需求，引入显式版本与能力位图，使协议升级能够在不中断旧实现的前提下协商降级。
-//! - **跨模块协作**：协商过程需向审计子系统写入事件，并为传输工厂、服务端监听器等调用方提供标准化结构体。
+//! - **跨模块协作**：协商结果直接服务于传输工厂、服务端监听器等调用方，提供标准化结构体。
 //! - **面向多环境**：所有类型与算法均兼容 `no_std + alloc` 场景，同时保留足够的扩展点支持云/边缘部署差异。
 //!
 //! # 核心组成（What）
 //! - [`Version`]：封装语义化版本 `{major, minor, patch}`，用于判定向后兼容性。
 //! - [`Capability`] 与 [`CapabilityBitmap`]：以位图形式声明能力集合，支持内建常量与自定义索引。
 //! - [`HandshakeOffer`] / [`HandshakeOutcome`]：描述双方宣告与协商结果，并指出降级的位图差异。
-//! - [`NegotiationAuditContext`]：将协商过程与 [`crate::audit`] 模块联动，确保事件进入不可篡改的哈希链。
-//! - [`negotiate`]：执行实际的版本/能力协商，并在成功或失败时触发审计记录。
+//! - [`negotiate`]：执行实际的版本/能力协商，并返回可感知的降级报告。
 //!
 //! # 协作方式（How）
 //! 1. 调用方向两侧收集版本与能力，构造 [`HandshakeOffer`]。
-//! 2. （可选）准备 [`NegotiationAuditContext`]，以便自动写入审计事件。
-//! 3. 调用 [`negotiate`] 获得 [`HandshakeOutcome`] 或 [`HandshakeError`]。
-//! 4. 依据 [`DowngradeReport`] 判断是否需要启用兼容策略或告警。
+//! 2. 调用 [`negotiate`] 获得 [`HandshakeOutcome`] 或 [`HandshakeError`]。
+//! 3. 依据 [`DowngradeReport`] 判断是否需要启用兼容策略或告警。
 //!
 //! # 风险提示（Trade-offs）
 //! - 位图仅支持 128 个能力位；若需更大空间需在未来引入分片或变长编码。
-//! - 审计记录失败会被视为握手失败，确保链式完整性但可能导致连接回退；调用方应为 Recorder 提供高可用保证。
 //! - 所有 `custom` 能力索引约定 `< 128`，若越界会触发 panic；请在注册表中统一分配编号。
+//! - 模块不再内置审计写入；需要合规链路的调用方应在外层自行记录关键字段。
 
-use crate::{
-    SparkError,
-    audit::{
-        AuditActor, AuditChangeEntry, AuditChangeSet, AuditEntityRef, AuditError, AuditEventV1,
-        AuditRecorder, TsaEvidence,
-    },
-    configuration::{ConfigKey, ConfigMetadata, ConfigScope, ConfigValue},
-    error::codes,
-};
-use alloc::{
-    borrow::Cow,
-    format,
-    string::{String, ToString},
-    sync::Arc,
-    vec,
-    vec::Vec,
-};
+use crate::{SparkError, error::codes};
+use alloc::format;
 use core::{
     cmp::{self, Ordering},
     fmt,
 };
-use sha2::{Digest, Sha256};
-
-const ZERO_HASH: &str = "0000000000000000000000000000000000000000000000000000000000000000";
-const HEX_TABLE: &[u8; 16] = b"0123456789abcdef";
 
 /// 协商使用的语义化版本号，采用 `{major, minor, patch}` 三段式表示。
 ///
@@ -436,13 +415,11 @@ impl HandshakeOutcome {
 /// - `MajorVersionMismatch`：主版本不同导致无法协商。
 /// - `LocalLacksRemoteRequirements`：本地缺少对端必选能力。
 /// - `RemoteLacksLocalRequirements`：对端缺少本地必选能力。
-/// - `AuditFailure`：审计事件写入失败。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum HandshakeErrorKind {
     MajorVersionMismatch { local: Version, remote: Version },
     LocalLacksRemoteRequirements { missing: CapabilityBitmap },
     RemoteLacksLocalRequirements { missing: CapabilityBitmap },
-    AuditFailure { error: AuditError },
 }
 
 /// 握手失败错误类型，兼容 [`crate::Error`]，可转换为 [`SparkError`]。
@@ -455,12 +432,6 @@ impl HandshakeError {
     /// 返回错误类别。
     pub fn kind(&self) -> &HandshakeErrorKind {
         &self.kind
-    }
-
-    fn audit(error: AuditError) -> Self {
-        Self {
-            kind: HandshakeErrorKind::AuditFailure { error },
-        }
     }
 
     /// 转换为领域错误 [`SparkError`]，便于上层透传。
@@ -481,10 +452,6 @@ impl HandshakeError {
                 codes::PROTOCOL_NEGOTIATION,
                 format!("传输握手失败：对端缺失本地要求的能力位图 {}", missing),
             ),
-            HandshakeErrorKind::AuditFailure { ref error } => SparkError::new(
-                codes::PROTOCOL_NEGOTIATION,
-                format!("传输握手失败：审计记录失败 ({})", error.message()),
-            ),
         }
     }
 }
@@ -503,9 +470,6 @@ impl fmt::Display for HandshakeError {
             HandshakeErrorKind::RemoteLacksLocalRequirements { missing } => {
                 write!(f, "remote lacks required capabilities {}", missing)
             }
-            HandshakeErrorKind::AuditFailure { error } => {
-                write!(f, "failed to record audit event: {}", error.message())
-            }
         }
     }
 }
@@ -517,299 +481,22 @@ impl crate::Error for HandshakeError {
     }
 }
 
-/// 审计上下文，封装 Recorder、实体信息以及事件序列号。
-///
-/// # 背景（Why）
-/// - T12 要求所有关键事件进入审计链；握手协商亦需记录版本、能力与降级信息。
-///
-/// # 契约（What）
-/// - `recorder`：实现 [`AuditRecorder`] 的对象，通常为高可用存储。
-/// - `entity_kind` / `entity_id`：审计实体标识，建议采用 `transport.connection` + 连接 ID。
-/// - `actor`：触发协商的操作者，可为系统账户或服务身份。
-/// - `next_sequence`：下一个事件序号，调用 [`Self::with_start_sequence`] 可自定义起点。
-///
-/// # 风险提示
-/// - Recorder 写入失败将转换为 [`HandshakeErrorKind::AuditFailure`] 并终止握手。
-#[derive(Clone)]
-pub struct NegotiationAuditContext {
-    recorder: Arc<dyn AuditRecorder>,
-    entity_kind: Cow<'static, str>,
-    entity_id: String,
-    entity_labels: Vec<(Cow<'static, str>, Cow<'static, str>)>,
-    actor: AuditActor,
-    success_action: Cow<'static, str>,
-    failure_action: Cow<'static, str>,
-    tsa_evidence: Option<TsaEvidence>,
-    next_sequence: u64,
-    chain_state: Option<String>,
-}
-
-impl NegotiationAuditContext {
-    /// 创建上下文，默认动作分别为 `transport.handshake.succeeded/failed`。
-    pub fn new(
-        recorder: Arc<dyn AuditRecorder>,
-        entity_kind: impl Into<Cow<'static, str>>,
-        entity_id: impl Into<String>,
-        actor: AuditActor,
-    ) -> Self {
-        Self {
-            recorder,
-            entity_kind: entity_kind.into(),
-            entity_id: entity_id.into(),
-            entity_labels: Vec::new(),
-            actor,
-            success_action: Cow::Borrowed("transport.handshake.succeeded"),
-            failure_action: Cow::Borrowed("transport.handshake.failed"),
-            tsa_evidence: None,
-            next_sequence: 0,
-            chain_state: None,
-        }
-    }
-
-    /// 覆盖实体标签集合，便于多租户或多区域审计。
-    pub fn with_labels(mut self, labels: Vec<(Cow<'static, str>, Cow<'static, str>)>) -> Self {
-        self.entity_labels = labels;
-        self
-    }
-
-    /// 绑定可信时间锚点。
-    pub fn with_tsa_evidence(mut self, evidence: TsaEvidence) -> Self {
-        self.tsa_evidence = Some(evidence);
-        self
-    }
-
-    /// 调整成功/失败动作名称。
-    pub fn with_actions(
-        mut self,
-        success: impl Into<Cow<'static, str>>,
-        failure: impl Into<Cow<'static, str>>,
-    ) -> Self {
-        self.success_action = success.into();
-        self.failure_action = failure.into();
-        self
-    }
-
-    /// 设置初始事件序号。
-    pub fn with_start_sequence(mut self, sequence: u64) -> Self {
-        self.next_sequence = sequence;
-        self
-    }
-
-    fn record_success(
-        &mut self,
-        outcome: &HandshakeOutcome,
-        local: Version,
-        remote: Version,
-        occurred_at: u64,
-    ) -> crate::Result<(), HandshakeError> {
-        let prev_hash = self
-            .chain_state
-            .clone()
-            .unwrap_or_else(|| ZERO_HASH.to_string());
-        let new_hash = compute_state_hash(outcome);
-        let sequence = self.next_sequence;
-        let changes = AuditChangeSet {
-            created: Vec::new(),
-            updated: vec![
-                AuditChangeEntry {
-                    key: ConfigKey::new(
-                        "transport",
-                        "handshake.negotiated_version",
-                        ConfigScope::Session,
-                        "协商出的协议版本",
-                    ),
-                    value: ConfigValue::Text(
-                        Cow::Owned(outcome.version().to_string()),
-                        ConfigMetadata::default(),
-                    ),
-                },
-                AuditChangeEntry {
-                    key: ConfigKey::new(
-                        "transport",
-                        "handshake.capabilities.enabled",
-                        ConfigScope::Session,
-                        "最终启用的能力位图",
-                    ),
-                    value: ConfigValue::Text(
-                        Cow::Owned(outcome.capabilities().to_string()),
-                        ConfigMetadata::default(),
-                    ),
-                },
-                AuditChangeEntry {
-                    key: ConfigKey::new(
-                        "transport",
-                        "handshake.capabilities.local_downgraded",
-                        ConfigScope::Session,
-                        "本地未启用的可选能力",
-                    ),
-                    value: ConfigValue::Text(
-                        Cow::Owned(outcome.downgrade().local().to_string()),
-                        ConfigMetadata::default(),
-                    ),
-                },
-                AuditChangeEntry {
-                    key: ConfigKey::new(
-                        "transport",
-                        "handshake.capabilities.remote_downgraded",
-                        ConfigScope::Session,
-                        "对端未启用的可选能力",
-                    ),
-                    value: ConfigValue::Text(
-                        Cow::Owned(outcome.downgrade().remote().to_string()),
-                        ConfigMetadata::default(),
-                    ),
-                },
-                AuditChangeEntry {
-                    key: ConfigKey::new(
-                        "transport",
-                        "handshake.peer_version",
-                        ConfigScope::Session,
-                        "对端声明的版本",
-                    ),
-                    value: ConfigValue::Text(
-                        Cow::Owned(remote.to_string()),
-                        ConfigMetadata::default(),
-                    ),
-                },
-                AuditChangeEntry {
-                    key: ConfigKey::new(
-                        "transport",
-                        "handshake.local_version",
-                        ConfigScope::Session,
-                        "本地声明的版本",
-                    ),
-                    value: ConfigValue::Text(
-                        Cow::Owned(local.to_string()),
-                        ConfigMetadata::default(),
-                    ),
-                },
-            ],
-            deleted: Vec::new(),
-        };
-        let event = AuditEventV1 {
-            event_id: format!("{}:{}:{}->{}", self.entity_id, sequence, local, remote),
-            sequence,
-            entity: AuditEntityRef {
-                kind: self.entity_kind.clone(),
-                id: self.entity_id.clone(),
-                labels: self.entity_labels.clone(),
-            },
-            action: self.success_action.clone(),
-            state_prev_hash: prev_hash,
-            state_curr_hash: new_hash.clone(),
-            actor: self.actor.clone(),
-            occurred_at,
-            tsa_evidence: self.tsa_evidence.clone(),
-            changes,
-        };
-        self.recorder.record(event).map_err(HandshakeError::audit)?;
-        self.next_sequence = sequence + 1;
-        self.chain_state = Some(new_hash);
-        Ok(())
-    }
-
-    fn record_failure(
-        &mut self,
-        error: &HandshakeError,
-        local: Version,
-        remote: Version,
-        occurred_at: u64,
-    ) -> crate::Result<(), HandshakeError> {
-        let prev_hash = self
-            .chain_state
-            .clone()
-            .unwrap_or_else(|| ZERO_HASH.to_string());
-        let sequence = self.next_sequence;
-        let changes = AuditChangeSet {
-            created: Vec::new(),
-            updated: vec![
-                AuditChangeEntry {
-                    key: ConfigKey::new(
-                        "transport",
-                        "handshake.failure.reason",
-                        ConfigScope::Session,
-                        "失败原因",
-                    ),
-                    value: ConfigValue::Text(
-                        Cow::Owned(error.to_string()),
-                        ConfigMetadata::default(),
-                    ),
-                },
-                AuditChangeEntry {
-                    key: ConfigKey::new(
-                        "transport",
-                        "handshake.peer_version",
-                        ConfigScope::Session,
-                        "对端声明的版本",
-                    ),
-                    value: ConfigValue::Text(
-                        Cow::Owned(remote.to_string()),
-                        ConfigMetadata::default(),
-                    ),
-                },
-                AuditChangeEntry {
-                    key: ConfigKey::new(
-                        "transport",
-                        "handshake.local_version",
-                        ConfigScope::Session,
-                        "本地声明的版本",
-                    ),
-                    value: ConfigValue::Text(
-                        Cow::Owned(local.to_string()),
-                        ConfigMetadata::default(),
-                    ),
-                },
-            ],
-            deleted: Vec::new(),
-        };
-        let event = AuditEventV1 {
-            event_id: format!(
-                "{}:{}:{}->{}:failure",
-                self.entity_id, sequence, local, remote
-            ),
-            sequence,
-            entity: AuditEntityRef {
-                kind: self.entity_kind.clone(),
-                id: self.entity_id.clone(),
-                labels: self.entity_labels.clone(),
-            },
-            action: self.failure_action.clone(),
-            state_prev_hash: prev_hash.clone(),
-            state_curr_hash: prev_hash,
-            actor: self.actor.clone(),
-            occurred_at,
-            tsa_evidence: self.tsa_evidence.clone(),
-            changes,
-        };
-        self.recorder.record(event).map_err(HandshakeError::audit)?;
-        self.next_sequence = sequence + 1;
-        Ok(())
-    }
-}
-
 /// 执行版本与能力协商。
 ///
 /// # 流程概述（How）
 /// 1. 检查主版本兼容性；若不兼容返回 [`HandshakeErrorKind::MajorVersionMismatch`].
 /// 2. 校验双方是否满足对方必选能力；缺失时分别返回 `LocalLacksRemoteRequirements` 或 `RemoteLacksLocalRequirements`。
 /// 3. 计算版本最小值、能力交集与降级报告，生成 [`HandshakeOutcome`]。
-/// 4. 若提供审计上下文，记录成功/失败事件；Recorder 报错会转换为 `AuditFailure`。
 ///
 /// # 契约说明（What）
-/// - **输入**：本地/远端宣告、事件发生时间戳（Unix 毫秒）、可选审计上下文。
+/// - **输入**：本地/远端宣告。
 /// - **返回**：成功时 [`HandshakeOutcome`]；失败时 [`HandshakeError`]。
-/// - **副作用**：
-///   - 审计上下文存在时，会将事件写入 Recorder，并维护哈希链；
-///   - 协商失败不会修改上下文的链表 tip。
 ///
 /// # 风险提示（Trade-offs）
-/// - `occurred_at` 由调用方提供，需使用可信时间源。
-/// - 若在热路径频繁调用，应复用 `NegotiationAuditContext`，避免重复分配标签向量。
+/// - 协商仅依赖双方声明的静态能力，若运行时还存在动态访问控制或租户隔离要求，调用方需在外层补充校验与记录。
 pub fn negotiate(
     local: &HandshakeOffer,
     remote: &HandshakeOffer,
-    occurred_at: u64,
-    mut audit: Option<&mut NegotiationAuditContext>,
 ) -> crate::Result<HandshakeOutcome, HandshakeError> {
     if !local.version().is_compatible_with(&remote.version()) {
         let error = HandshakeError {
@@ -818,9 +505,6 @@ pub fn negotiate(
                 remote: remote.version(),
             },
         };
-        if let Some(ctx) = audit.as_mut() {
-            ctx.record_failure(&error, local.version(), remote.version(), occurred_at)?;
-        }
         return Err(error);
     }
 
@@ -831,9 +515,6 @@ pub fn negotiate(
                 missing: remote_requirements,
             },
         };
-        if let Some(ctx) = audit.as_mut() {
-            ctx.record_failure(&error, local.version(), remote.version(), occurred_at)?;
-        }
         return Err(error);
     }
 
@@ -844,9 +525,6 @@ pub fn negotiate(
                 missing: local_requirements,
             },
         };
-        if let Some(ctx) = audit.as_mut() {
-            ctx.record_failure(&error, local.version(), remote.version(), occurred_at)?;
-        }
         return Err(error);
     }
 
@@ -857,33 +535,7 @@ pub fn negotiate(
         remote.optional().difference(enabled),
     );
     let outcome = HandshakeOutcome::new(negotiated_version, enabled, downgrade);
-
-    if let Some(ctx) = audit.as_mut() {
-        ctx.record_success(&outcome, local.version(), remote.version(), occurred_at)?;
-    }
-
     Ok(outcome)
-}
-
-fn compute_state_hash(outcome: &HandshakeOutcome) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(outcome.version().major().to_le_bytes());
-    hasher.update(outcome.version().minor().to_le_bytes());
-    hasher.update(outcome.version().patch().to_le_bytes());
-    hasher.update(outcome.capabilities().bits().to_le_bytes());
-    hasher.update(outcome.downgrade().local().bits().to_le_bytes());
-    hasher.update(outcome.downgrade().remote().bits().to_le_bytes());
-    let digest = hasher.finalize();
-    hex_from_bytes(&digest)
-}
-
-fn hex_from_bytes(bytes: &[u8]) -> String {
-    let mut out = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        out.push(HEX_TABLE[(byte >> 4) as usize] as char);
-        out.push(HEX_TABLE[(byte & 0x0F) as usize] as char);
-    }
-    out
 }
 
 impl From<HandshakeError> for SparkError {
