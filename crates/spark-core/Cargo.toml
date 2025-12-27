@@ -42,11 +42,9 @@ bytes = { workspace = true }
 criterion = { workspace = true }
 proptest = { workspace = true }
 thiserror = { workspace = true }
-spark-contract-tests = { workspace = true }
 futures = { workspace = true, features = ["executor"] }
 serde_json = { workspace = true }
 toml = { workspace = true }
-spark-hosting = { workspace = true, features = ["std"] }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)', 'cfg(spark_loom)'] }

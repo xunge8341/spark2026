@@ -160,7 +160,7 @@ pub static LEGACY_LOOPBACK_OUTBOUND: DeprecationNotice = DeprecationNotice::new(
     "spark_core::common::legacy_loopback_outbound",
     "0.1.0",
     "0.3.0",
-    Some("docs/governance/deprecation.md#示例弃用commonlegacy_loopback_outbound"),
+    Some("docs/deprecation.md#示例弃用commonlegacy_loopback_outbound"),
     Some("改用 Loopback::fire_loopback_outbound 以保留主路逻辑"),
 );
 
