@@ -1,7 +1,7 @@
 use crate::{
     TcpChannel, TcpSocketConfig,
     error::{self, map_io_error},
-    util::{deadline_expired, monotonic_now, run_with_context, to_socket_addr},
+    util::{deadline_expired, run_with_context, to_socket_addr},
 };
 use core::fmt;
 use spark_core::error::codes;
@@ -240,9 +240,15 @@ impl TcpServerChannel {
     fn perform_handshake(&self) -> spark_core::Result<HandshakeOutcome, CoreError> {
         let local_offer = self.default_handshake_offer();
         let remote_offer = self.default_handshake_offer();
-        let occurred_at = monotonic_now().as_duration().as_micros() as u64;
-
-        negotiate(&local_offer, &remote_offer, occurred_at, None).map_err(|error| {
+        //
+        // 教案级补充：
+        // - 意图（Why）：`negotiate` 现已在内部收集时间戳与遥测信息，调用方保持“仅传入本地/远端宣告”
+        //   的最小输入面，避免重复传递时间数据导致接口漂移；
+        // - 契约（What）：仅提供双端宣告即视为满足前置条件，函数在成功路径下返回协商结果，失败时
+        //   透出底层错误；
+        // - 考量（Trade-offs）：将时间收集下沉到核心库，减少参数数量的同时确保未来协议演进时调用方
+        //   无需修改逻辑。
+        negotiate(&local_offer, &remote_offer).map_err(|error| {
             CoreError::new(
                 codes::PROTOCOL_NEGOTIATION,
                 format!("tcp handshake negotiation failed: {error}"),
