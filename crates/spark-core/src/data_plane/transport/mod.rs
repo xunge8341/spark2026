@@ -39,7 +39,7 @@ pub use endpoint::{Endpoint, EndpointKind};
 pub use factory::{DynTransportFactory, ListenerConfig, TransportFactory, TransportFactoryObject};
 pub use handshake::{
     Capability, CapabilityBitmap, DowngradeReport, HandshakeError, HandshakeErrorKind,
-    HandshakeOffer, HandshakeOutcome, NegotiationAuditContext, Version, negotiate,
+    HandshakeOffer, HandshakeOutcome, Version, negotiate,
 };
 pub use intent::{
     AvailabilityRequirement, ConnectionIntent, QualityOfService, SecurityMode, SessionLifecycle,

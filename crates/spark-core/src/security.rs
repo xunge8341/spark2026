@@ -38,6 +38,44 @@ pub enum SecurityClass {
     Unknown,
 }
 
+impl SecurityClass {
+    /// 返回安全分类的简明摘要与机器可读编码。
+    ///
+    /// # 设计意图（Why）
+    /// - 统一为日志、关闭原因与观测标签提供稳定的中文描述，避免在各处重复硬编码；
+    /// - 暴露轻量级枚举方法，而非依赖治理模块的策略映射，确保在治理子系统下线后仍可输出可读信息。
+    ///
+    /// # 契约说明（What）
+    /// - **前置条件**：调用方无需额外上下文即可获取摘要或编码；
+    /// - **返回值**：`summary` 返回面向人的中文描述，`code` 返回用于观测标签的稳定字符串编码。
+    ///
+    /// # 风险与注意（Trade-offs）
+    /// - 摘要与编码为常量字符串，若未来引入本地化或扩展分类，需要同步更新下方匹配；
+    /// - 编码以 `security.*` 命名空间表达，不再依赖治理模块的策略枚举，调用方应避免假设编码会与历史值完全一致。
+    pub const fn summary(self) -> &'static str {
+        match self {
+            SecurityClass::Authentication => "身份验证失败，需重新认证",
+            SecurityClass::Authorization => "权限不足或策略拒绝",
+            SecurityClass::Confidentiality => "检测到保密性风险，需加密或隔离",
+            SecurityClass::Integrity => "数据完整性校验失败",
+            SecurityClass::Audit => "审计或合规策略触发告警",
+            SecurityClass::Unknown => "未归类的安全事件，建议人工复核",
+        }
+    }
+
+    /// 返回用于可观测性与错误矩阵的稳定编码。
+    pub const fn code(self) -> &'static str {
+        match self {
+            SecurityClass::Authentication => "security.authentication",
+            SecurityClass::Authorization => "security.authorization",
+            SecurityClass::Confidentiality => "security.confidentiality",
+            SecurityClass::Integrity => "security.integrity",
+            SecurityClass::Audit => "security.audit",
+            SecurityClass::Unknown => "security.unknown",
+        }
+    }
+}
+
 impl Display for SecurityClass {
     /// 展示面向人的安全分类摘要，供日志、告警与关闭原因使用。
     ///
@@ -56,15 +94,6 @@ impl Display for SecurityClass {
     /// - 仅提供人类可读描述，不返回机器可解析编码；
     /// - 若未来需要本地化或多语种支持，可在调用侧包装翻译表，保持此处零依赖、零分配。
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let summary = match self {
-            SecurityClass::Authentication => "身份验证失败，需重新认证",
-            SecurityClass::Authorization => "权限不足或策略拒绝",
-            SecurityClass::Confidentiality => "检测到保密性风险，需加密或隔离",
-            SecurityClass::Integrity => "数据完整性校验失败",
-            SecurityClass::Audit => "审计或合规策略触发告警",
-            SecurityClass::Unknown => "未归类的安全事件，建议人工复核",
-        };
-
-        f.write_str(summary)
+        f.write_str(self.summary())
     }
 }

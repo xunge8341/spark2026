@@ -26,7 +26,7 @@ pub(crate) use r#async::block_on;
 pub(crate) use deterministic::*;
 pub(crate) use macros::*;
 
-use spark_core::governance::security::{
+use spark_core::security::{
     IdentityDescriptor, IdentityKind, PolicyEffect, PolicyRule, ResourcePattern, SecurityPolicy,
     SubjectMatcher,
 };

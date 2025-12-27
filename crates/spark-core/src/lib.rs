@@ -56,8 +56,6 @@ pub mod kernel;
 pub use kernel::{arc_swap, common, context, contract, future, ids, model, sealed, status, types};
 
 pub mod deprecation;
-mod governance;
-pub use governance::{audit, configuration, limits, retry, timeout};
 pub mod security;
 
 pub mod observability;
@@ -92,11 +90,6 @@ pub mod prelude;
 /// - 所有桩对象在 `no_std + alloc` 环境同样可用，便于运行最小化集成测试。
 pub mod test_stubs;
 
-pub use audit::{
-    AuditActor, AuditChangeEntry, AuditChangeSet, AuditContext, AuditDeletedEntry, AuditEntityRef,
-    AuditError, AuditEventV1, AuditPipeline, AuditRecorder, AuditStateHasher, AuditTag,
-    TsaEvidence,
-};
 pub use buffer::{
     BufView, BufferAllocator, BufferPool, Bytes, Chunks, ErasedSparkBuf, ErasedSparkBufMut,
     PipelineMessage, PoolStatDimension, PoolStats, ReadableBuffer, UserMessage, WritableBuffer,
@@ -119,16 +112,6 @@ pub use codec::{
 ///   因此使用 `#[allow(deprecated)]` 抑制内部警告，保留对外提示能力。
 #[allow(deprecated)]
 pub use common::{Empty, IntoEmpty, Loopback, legacy_loopback_outbound};
-pub use configuration::{
-    BuildError, BuildErrorKind, BuildErrorStage, BuildOutcome, BuildReport, ChangeEvent,
-    ChangeNotification, ChangeSet, ConfigDelta, ConfigKey, ConfigMetadata, ConfigScope,
-    ConfigValue, ConfigurationBuilder, ConfigurationError, ConfigurationHandle, ConfigurationLayer,
-    ConfigurationSnapshot, ConfigurationSource, ConfigurationUpdate, ConfigurationUpdateKind,
-    ConfigurationWatch, DynConfigurationSource, LayeredConfiguration, NoopConfigStream,
-    ProfileDescriptor, ProfileId, ProfileLayering, ResolvedConfiguration, SnapshotEntry,
-    SnapshotLayer, SnapshotMetadata, SnapshotProfile, SnapshotValue, SourceMetadata,
-    ValidationFinding, ValidationReport, ValidationState,
-};
 pub use context::Context;
 pub use contract::{
     BackpressureSignal, CallContext, CallContextBuilder, Cancellation, ContractStateMachine,
@@ -148,10 +131,6 @@ pub use host::{
     ThroughputClass,
 };
 pub use ids::{CorrelationId, IdempotencyKey, RequestId};
-pub use limits::{
-    LimitAction, LimitConfigError, LimitDecision, LimitMetricsHook, LimitPlan, LimitSettings,
-    ResourceKind, config_error_to_spark, decision_queue_snapshot,
-};
 pub use model::{State, Status};
 pub use observability::{
     ApplicationEvent, AttributeKey, AttributeSet, ComponentHealth, CoreUserEvent, Counter,
@@ -181,7 +160,6 @@ pub use service::{
     AutoDynBridge, BoxService, ClientFactory, Decode, DynService, Encode, Layer, Service,
     ServiceObject, type_mismatch_error,
 };
-pub use timeout::{TimeoutConfigError, TimeoutRuntimeConfig, TimeoutSettings};
 pub use types::{
     Budget, BudgetDecision, BudgetKind, BudgetSet, BudgetSnapshot, CloseReason, NonEmptyStr,
 };
@@ -201,10 +179,10 @@ pub use transport::{
     AddressFamily, AvailabilityRequirement, BackpressureDecision, BackpressureMetrics, Capability,
     CapabilityBitmap, ConnectionIntent, DatagramEndpoint, DowngradeReport, DynServerChannel,
     DynTransportFactory, Endpoint, EndpointKind, HandshakeError, HandshakeErrorKind,
-    HandshakeOffer, HandshakeOutcome, ListenerConfig, ListenerShutdown, NegotiationAuditContext,
-    QualityOfService, SecurityMode, ServerChannel, ServerChannelObject, SessionLifecycle,
-    TransportBuilder, TransportFactory, TransportFactoryObject, TransportParams,
-    TransportSocketAddr, Version, describe_shutdown_target, negotiate,
+    HandshakeOffer, HandshakeOutcome, ListenerConfig, ListenerShutdown, QualityOfService,
+    SecurityMode, ServerChannel, ServerChannelObject, SessionLifecycle, TransportBuilder,
+    TransportFactory, TransportFactoryObject, TransportParams, TransportSocketAddr, Version,
+    describe_shutdown_target, negotiate,
 };
 
 use alloc::boxed::Box;
