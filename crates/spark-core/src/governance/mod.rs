@@ -10,7 +10,7 @@
 //! - [`timeout`]：将配置模型（`profile`）与运行时热更新容器（`runtime`）归档于同一命名空间；
 //! - [`limits`]、[`retry`]、[`security`]：治理策略族；
 //! - [`audit`]：变更记录；
-//! - [`crate::observability`]、[`crate::deprecation`]：可观测性与弃用治理现已抽离为顶层模块，并通过此处重导出以兼容既有路径。
+//! - [`crate::observability`]、[`crate::deprecation`]：可观测性与弃用治理现已抽离为顶层模块。
 //!
 //! # 使用指南（How）
 //! - 数据面与平台通过 `use crate::governance::...` 引入所需策略；
@@ -20,8 +20,6 @@
 //! # 风险提示（Trade-offs）
 //! - 治理层往往与外部系统对接（配置中心、监控、密钥管理），修改接口需评估跨 crate 影响；
 //! - 避免在此目录引入对数据面/平台的反向依赖，以防止循环；必要时通过 trait 或事件桥接。
-
-pub use crate::{deprecation, observability};
 
 pub mod audit;
 pub mod configuration;

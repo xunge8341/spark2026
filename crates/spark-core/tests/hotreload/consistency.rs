@@ -23,7 +23,7 @@ use spark_core::{
         AttributeSet, InstrumentDescriptor, MetricsProvider,
         metrics::contract::hot_reload as contract,
     },
-    runtime::{HotReloadApplyTimer, HotReloadFence},
+    runtime::hotreload::{HotReloadApplyTimer, HotReloadFence},
     test_stubs::observability::{NoopCounter, NoopGauge, NoopHistogram},
     timeout::{TimeoutRuntimeConfig, TimeoutSettings},
 };

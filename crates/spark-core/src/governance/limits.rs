@@ -15,7 +15,7 @@ use crate::error::SparkError;
 use crate::observability::{
     AttributeSet, MetricsProvider, OwnedAttributeSet, metrics::contract::limits as metrics_contract,
 };
-use crate::runtime::{
+use crate::platform::runtime::hotreload::{
     HotReloadApplyTimer, HotReloadFence, HotReloadObservability, HotReloadReadGuard,
     HotReloadWriteGuard,
 };

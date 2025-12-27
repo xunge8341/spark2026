@@ -30,7 +30,7 @@ use crate::governance::configuration::{
     ConfigKey, ConfigScope, ConfigValue, ResolvedConfiguration,
 };
 use crate::observability::MetricsProvider;
-use crate::platform::runtime::{
+use crate::platform::runtime::hotreload::{
     HotReloadApplyTimer, HotReloadFence, HotReloadObservability, HotReloadReadGuard,
     HotReloadWriteGuard,
 };

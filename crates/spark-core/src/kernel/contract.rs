@@ -1,6 +1,9 @@
 use super::attributes::Attributes;
 use crate::{
-    context::Context, observability::TraceContext, runtime::AsyncRuntime, service::ClientFactory,
+    context::Context,
+    observability::{SpanId, TraceContext, TraceFlags, TraceId},
+    runtime::AsyncRuntime,
+    service::ClientFactory,
 };
 use alloc::sync::Arc;
 use alloc::{format, string::ToString, vec, vec::Vec};
@@ -600,11 +603,29 @@ impl Default for CallContextBuilder {
             budgets: Vec::new(),
             attributes: Arc::new(Attributes::new()),
             observability: ObservabilityContract::default(),
-            trace_context: TraceContext::generate(),
+            trace_context: zero_trace_context(),
             client_factory: None,
             runtime: None,
         }
     }
+}
+
+/// 构造“全零”追踪上下文，确保默认上下文不携带上游链路信息。
+///
+/// # 教案式说明
+/// - **意图（Why）**：默认构建的 [`CallContext`] 不应依赖外部治理契约或随机源，以防在平台引导阶段引入隐形耦合。
+/// - **逻辑（How）**：使用全零 `TraceId`/`SpanId` 与关闭采样位的 [`TraceFlags`] 构造 [`TraceContext`]；
+///   保留空的 `TraceState`，将追踪链路的接入责任交由调用方显式注入。
+/// - **契约（What）**：
+///   - 前置条件：无；
+///   - 后置条件：返回的上下文可安全用于日志或指标，但在接入真实链路前应替换为有效 ID。
+/// - **权衡（Trade-offs）**：选择“全零”而非随机值，便于在测试与引导阶段快速检测未初始化链路。
+fn zero_trace_context() -> TraceContext {
+    TraceContext::new(
+        TraceId::from([0u8; 16]),
+        SpanId::from_bytes([0u8; 8]),
+        TraceFlags::new(0),
+    )
 }
 
 impl CallContextBuilder {

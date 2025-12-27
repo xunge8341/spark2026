@@ -8,7 +8,7 @@ use spark_core::configuration::{
 };
 use spark_core::future::Stream;
 use spark_core::limits::{LimitRuntimeConfig, LimitSettings, ResourceKind};
-use spark_core::runtime::{HotReloadApplyTimer, HotReloadFence};
+use spark_core::runtime::hotreload::{HotReloadApplyTimer, HotReloadFence};
 use spark_core::timeout::{TimeoutRuntimeConfig, TimeoutSettings};
 use std::collections::VecDeque;
 use std::pin::Pin;

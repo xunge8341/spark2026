@@ -3,28 +3,19 @@
 //! Foundation 版本仅保留执行器/定时器/任务抽象与无害的糖（sugar）。
 //!
 //! 说明：
-//! - 已删除 `slo` / `hotreload` 等策略模块；
-//! - 已删除任何策略层 crate 的 re-export；
-//! - 为保证宏与上层调用路径连续，保留 `sugar` 相关导出。
+//! - 已删除对 `slo` 等策略模块的公开导出；
+//! - 为保证宏与上层调用路径连续，保留 `sugar` 相关导出；
+//! - 热更新能力仅通过子模块显式访问，取消顶层再导出以降低治理耦合。
 
 mod executor;
-mod hotreload;
+pub mod hotreload;
 mod services;
-pub mod slo;
 pub mod sugar;
 mod task;
 mod timer;
 
 pub use executor::TaskExecutor;
-pub use hotreload::{
-    HotReloadApplyTimer, HotReloadFence, HotReloadObservability, HotReloadReadGuard,
-    HotReloadWriteGuard,
-};
 pub use services::CoreServices;
-pub use slo::{
-    SloPolicyAction, SloPolicyConfigError, SloPolicyDirective, SloPolicyManager,
-    SloPolicyReloadReport, SloPolicyRule, SloPolicyTrigger, slo_policy_table_key,
-};
 pub use task::{
     BlockingTaskSubmission, JoinHandle, LocalTaskSubmission, ManagedBlockingTask, ManagedLocalTask,
     ManagedSendTask, SendTaskSubmission, TaskCancellationStrategy, TaskError, TaskHandle,
