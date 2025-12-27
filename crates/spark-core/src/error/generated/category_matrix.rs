@@ -1,4 +1,4 @@
-// @generated 自动生成文件，请勿手工修改。
+// @generated 自动生成文件，请勿手工修改.
 // 由 crates/spark-core/build.rs 根据 contracts/error_matrix.toml 生成。
 
 use crate::{
@@ -87,39 +87,40 @@ impl CategoryMatrixEntry {
         self.template.default_response()
     }
 }
-
-/// 表达如何从静态表生成 `ErrorCategory` 及自动响应动作的模板。
+/// 静态矩阵条目对应的模板枚举：封装 ErrorCategory 与默认动作的生成规则。
 #[derive(Clone, Copy)]
 pub enum CategoryTemplate {
-    /// 对应 `Retryable` 分类，携带等待窗口、原因描述与繁忙主语义。
     Retryable {
         wait_ms: u64,
         reason: &'static str,
         busy: Option<BusyDisposition>,
     },
-    /// `Timeout` 分类。
     Timeout,
-    /// 协议违规。
-    ProtocolViolation { close_message: &'static str },
-    /// 预算耗尽（区分预算类型）。
-    ResourceExhausted { budget: BudgetDisposition },
-    /// 运行时取消。
+    ProtocolViolation {
+        close_message: &'static str,
+    },
+    ResourceExhausted {
+        budget: BudgetDisposition,
+    },
     Cancelled,
-    /// 非重试错误。
     NonRetryable,
-    /// 安全事件，需要携带具体安全分类以生成关闭文案。
-    Security { class: SecurityClass },
+    Security {
+        class: SecurityClass,
+    },
 }
-
 impl CategoryTemplate {
-    /// 按模板实例化 [`ErrorCategory`]。
+    /// 实例化错误分类。
     pub fn instantiate(&self) -> ErrorCategory {
         match self {
             CategoryTemplate::Retryable {
-                wait_ms, reason, ..
+                wait_ms,
+                reason,
+                ..
             } => {
-                let advice =
-                    RetryAdvice::after(Duration::from_millis(*wait_ms)).with_reason(*reason);
+                let mut advice = RetryAdvice::after(Duration::from_millis(*wait_ms));
+                if !reason.is_empty() {
+                    advice = advice.with_reason(*reason);
+                }
                 ErrorCategory::Retryable(advice)
             }
             CategoryTemplate::Timeout => ErrorCategory::Timeout,
@@ -133,7 +134,7 @@ impl CategoryTemplate {
         }
     }
 
-    /// 计算默认自动响应动作。
+    /// 默认自动响应动作，供 Pipeline/Router 等模块读取。
     pub fn default_response(&self) -> DefaultAutoResponse {
         match self {
             CategoryTemplate::Retryable {
@@ -161,31 +162,24 @@ impl CategoryTemplate {
         }
     }
 }
-
-/// 默认自动响应动作的精简表达，用于测试与 Pipeline 复用。
+/// 默认自动响应动作，避免在热路径中重复匹配 CategoryTemplate。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DefaultAutoResponse {
-    /// 广播 `Busy`（可选）随后发送 `RetryAfter`。
     RetryAfter {
         wait_ms: u64,
         reason: &'static str,
         busy: Option<BusyDisposition>,
     },
-    /// 广播 `BudgetExhausted`。
     BudgetExhausted { budget: BudgetDisposition },
-    /// 触发优雅关闭。
     Close {
         reason_code: &'static str,
         message: &'static str,
     },
-    /// 标记取消令牌。
     Cancel,
-    /// 默认不产生额外动作。
     None,
 }
 
 impl DefaultAutoResponse {
-    /// 若为背压分支，返回对应的预算类型。
     pub const fn budget(&self) -> Option<BudgetDisposition> {
         match self {
             DefaultAutoResponse::BudgetExhausted { budget } => Some(*budget),
@@ -193,7 +187,6 @@ impl DefaultAutoResponse {
         }
     }
 
-    /// 若为关闭分支，返回关闭原因元组。
     pub const fn close_reason(&self) -> Option<(&'static str, &'static str)> {
         match self {
             DefaultAutoResponse::Close {
@@ -204,7 +197,6 @@ impl DefaultAutoResponse {
         }
     }
 
-    /// 若为重试分支，返回等待窗口与繁忙主语义。
     pub const fn retry(&self) -> Option<(u64, &'static str, Option<BusyDisposition>)> {
         match self {
             DefaultAutoResponse::RetryAfter {
@@ -216,14 +208,12 @@ impl DefaultAutoResponse {
         }
     }
 }
-
-/// 描述在退避信号之前广播的繁忙主语义（上游/下游）。
+/// 描述“繁忙”语义的上下文，用于在重试时注入背压原因。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BusyDisposition {
     Upstream,
     Downstream,
 }
-
 impl BusyDisposition {
     /// 转换为 [`BusyReason`]，供 Pipeline 默认处理器复用。
     pub fn to_busy_reason(self) -> BusyReason {
@@ -233,14 +223,12 @@ impl BusyDisposition {
         }
     }
 }
-
 /// 描述预算耗尽场景的预算类型，避免在常量表中直接引用 `BudgetKind`。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BudgetDisposition {
     Decode,
     Flow,
 }
-
 impl BudgetDisposition {
     /// 转换为框架实际使用的 [`BudgetKind`]。
     pub fn to_budget_kind(self) -> BudgetKind {

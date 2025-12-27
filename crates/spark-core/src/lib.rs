@@ -56,8 +56,7 @@ pub mod kernel;
 pub use kernel::{arc_swap, common, context, contract, future, ids, model, sealed, status, types};
 
 pub mod deprecation;
-pub mod governance;
-pub use governance::timeout::profile as config;
+mod governance;
 pub use governance::{audit, configuration, limits, retry, timeout};
 pub mod security;
 
@@ -120,7 +119,6 @@ pub use codec::{
 ///   因此使用 `#[allow(deprecated)]` 抑制内部警告，保留对外提示能力。
 #[allow(deprecated)]
 pub use common::{Empty, IntoEmpty, Loopback, legacy_loopback_outbound};
-pub use config::{Timeout, TimeoutProfile};
 pub use configuration::{
     BuildError, BuildErrorKind, BuildErrorStage, BuildOutcome, BuildReport, ChangeEvent,
     ChangeNotification, ChangeSet, ConfigDelta, ConfigKey, ConfigMetadata, ConfigScope,
@@ -142,14 +140,6 @@ pub use error::{
     IntoCoreError, IntoDomainError, Result, SparkError,
 };
 pub use future::{BoxFuture, BoxStream, LocalBoxFuture, Stream};
-pub use governance::security::{
-    Credential, CredentialDescriptor, CredentialMaterial, CredentialScope, CredentialState,
-    IdentityDescriptor, IdentityKind, IdentityProof, KeyMaterial, KeyPurpose, KeyRequest,
-    KeyResponse, KeyRetrievalError, KeySource, NegotiationContext, NegotiationError,
-    NegotiationOutcome, NegotiationResult, PolicyAttachment, PolicyEffect, PolicyRule,
-    ResourcePattern, SecurityNegotiationPlan, SecurityNegotiator, SecurityPolicy, SecurityProtocol,
-    SecurityProtocolOffer, SubjectMatcher,
-};
 pub use host::{
     CapabilityDescriptor, CapabilityLevel, ComponentDescriptor, ComponentFactory,
     ComponentHealthState, ComponentKind, ConfigChange, ConfigConsumer, ConfigEnvelope, ConfigQuery,
@@ -183,10 +173,8 @@ pub use protocol::{Event, Frame, Message};
 pub use runtime::{
     AsyncRuntime, BlockingTaskSubmission, CoreServices, JoinHandle, LocalTaskSubmission,
     ManagedBlockingTask, ManagedLocalTask, ManagedSendTask, MonotonicTimePoint, SendTaskSubmission,
-    SloPolicyAction, SloPolicyConfigError, SloPolicyDirective, SloPolicyManager,
-    SloPolicyReloadReport, SloPolicyRule, SloPolicyTrigger, TaskCancellationStrategy, TaskError,
-    TaskExecutor, TaskHandle, TaskLaunchOptions, TaskPriority, TaskResult, TimeDriver,
-    slo_policy_table_key,
+    TaskCancellationStrategy, TaskError, TaskExecutor, TaskHandle, TaskLaunchOptions, TaskPriority,
+    TaskResult, TimeDriver,
 };
 pub use security::SecurityClass;
 pub use service::{
